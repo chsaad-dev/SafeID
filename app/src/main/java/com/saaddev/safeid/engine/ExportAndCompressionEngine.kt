@@ -1,5 +1,6 @@
 package com.saaddev.safeid.engine
 
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -8,6 +9,11 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
+import android.media.MediaScannerConnection
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -214,6 +220,50 @@ object ExportAndCompressionEngine {
         }
         pdfDocument.close()
         return targetFile
+    }
+
+    /**
+     * Saves [sourceFile] into the public Downloads/SafeID/ directory.
+     * Uses scoped MediaStore.Downloads on Android 10+ (API 29+) with zero storage permissions,
+     * and direct public file access with media scanning fallback for Android 8-9.
+     */
+    fun saveToPublicDownloads(
+        context: Context,
+        sourceFile: File,
+        mimeType: String
+    ): Uri? {
+        val fileName = sourceFile.name
+        val resolver = context.contentResolver
+
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/SafeID")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            if (uri != null) {
+                resolver.openOutputStream(uri)?.use { out ->
+                    sourceFile.inputStream().use { input ->
+                        input.copyTo(out)
+                    }
+                }
+                contentValues.clear()
+                contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                resolver.update(uri, contentValues, null, null)
+            }
+            uri
+        } else {
+            @Suppress("DEPRECATION")
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val safeIdDir = File(downloadsDir, "SafeID").apply { mkdirs() }
+            val destFile = File(safeIdDir, fileName)
+            sourceFile.copyTo(destFile, overwrite = true)
+            MediaScannerConnection.scanFile(context, arrayOf(destFile.absolutePath), arrayOf(mimeType), null)
+            Uri.fromFile(destFile)
+        }
     }
 }
 

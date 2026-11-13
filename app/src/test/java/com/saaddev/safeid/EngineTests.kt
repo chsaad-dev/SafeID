@@ -96,4 +96,18 @@ class EngineTests {
         assertEquals(260f, ExportAndCompressionEngine.FRONT_CARD_Y_PX, 0.001f)
         assertEquals(860f, ExportAndCompressionEngine.BACK_CARD_Y_PX, 0.001f)
     }
+
+    @Test
+    fun targetSizes_kbLimits() {
+        assertEquals(null, com.saaddev.safeid.data.model.TargetSize.ORIGINAL.maxKb)
+        assertEquals(200, com.saaddev.safeid.data.model.TargetSize.KB_200.maxKb)
+        assertEquals(100, com.saaddev.safeid.data.model.TargetSize.KB_100.maxKb)
+        assertEquals(50, com.saaddev.safeid.data.model.TargetSize.KB_50.maxKb)
+    }
+
+    @Test
+    fun exportFormats_mimeTypes() {
+        assertEquals("image/jpeg", com.saaddev.safeid.data.model.ExportFormat.JPG.mimeType)
+        assertEquals("application/pdf", com.saaddev.safeid.data.model.ExportFormat.PDF.mimeType)
+    }
 }

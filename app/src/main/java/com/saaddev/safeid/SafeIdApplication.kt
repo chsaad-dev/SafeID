@@ -6,8 +6,10 @@ import com.google.android.gms.ads.MobileAds
 class SafeIdApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        // Initialize AdMob SDK
-        MobileAds.initialize(this) {}
+        // Initialize AdMob SDK & preload interstitial ad
+        MobileAds.initialize(this) {
+            com.saaddev.safeid.ads.InterstitialAdManager.load(this)
+        }
 
         // Clear export cache on startup per PRD privacy specification
         try {

@@ -53,6 +53,7 @@ fun SafeIdNavGraph(
 
         composable(Screen.ExportShare.route) {
             ExportShareScreen(
+                viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onResetToHome = {
                     viewModel.resetSession()
