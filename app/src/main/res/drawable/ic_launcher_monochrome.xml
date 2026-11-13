@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Security Shield -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M 54,25 C 64,25 73,28 75,31 C 75,49 69,67 54,83 C 39,67 33,49 33,31 C 35,28 44,25 54,25 Z" />
+
+    <!-- ID Card Outline -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M 42,40 L 66,40 C 67.6,40 69,41.4 69,43 L 69,61 C 69,62.6 67.6,64 66,64 L 42,64 C 40.4,64 39,62.6 39,61 L 39,43 C 39,41.4 40.4,40 42,40 Z" />
+
+    <!-- ID Photo Placeholder -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 43,45 L 49,45 C 49.6,45 50,45.4 50,46 L 50,52 C 50,52.6 49.6,53 49,53 L 43,53 C 42.4,53 42,52.6 42,52 L 42,46 C 42,45.4 42.4,45 43,45 Z" />
+
+    <!-- ID Text Line 1 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M 53,46 L 65,46" />
+
+    <!-- ID Text Line 2 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M 53,50 L 62,50" />
+
+    <!-- ID Secure Strip Line -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:pathData="M 43,58 L 65,58" />
+</vector>
