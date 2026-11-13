@@ -3,9 +3,9 @@ package com.saaddev.safeid.ui.viewmodel
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.ViewModel
-import com.saaddev.safeid.data.model.ExifAuditSummary
 import com.saaddev.safeid.data.model.ExportConfig
 import com.saaddev.safeid.data.model.SafeIdSessionState
+import com.saaddev.safeid.engine.PrivacyAuditReport
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,7 +22,10 @@ class SafeIdViewModel : ViewModel() {
                 primaryImageUri = uri,
                 secondaryImageUri = null,
                 isFrontBackMode = false,
-                processedBitmap = null
+                primaryPrivacyReport = null,
+                secondaryPrivacyReport = null,
+                processedBitmap = null,
+                secondaryProcessedBitmap = null
             )
         }
     }
@@ -51,20 +54,32 @@ class SafeIdViewModel : ViewModel() {
                 primaryImageUri = frontUri,
                 secondaryImageUri = backUri,
                 isFrontBackMode = true,
-                processedBitmap = null
+                primaryPrivacyReport = null,
+                secondaryPrivacyReport = null,
+                processedBitmap = null,
+                secondaryProcessedBitmap = null
             )
         }
     }
 
-    fun setExifSummary(summary: ExifAuditSummary) {
+    fun setPrimaryPrivacyReport(report: PrivacyAuditReport) {
         _sessionState.update { current ->
-            current.copy(exifSummary = summary)
+            current.copy(primaryPrivacyReport = report)
         }
     }
 
-    fun setProcessedBitmap(bitmap: Bitmap?) {
+    fun setSecondaryPrivacyReport(report: PrivacyAuditReport) {
         _sessionState.update { current ->
-            current.copy(processedBitmap = bitmap)
+            current.copy(secondaryPrivacyReport = report)
+        }
+    }
+
+    fun setProcessedBitmaps(primary: Bitmap?, secondary: Bitmap? = null) {
+        _sessionState.update { current ->
+            current.copy(
+                processedBitmap = primary,
+                secondaryProcessedBitmap = secondary
+            )
         }
     }
 
@@ -78,4 +93,3 @@ class SafeIdViewModel : ViewModel() {
         _sessionState.value = SafeIdSessionState()
     }
 }
-

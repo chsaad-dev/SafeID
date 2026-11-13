@@ -24,8 +24,12 @@ fun SafeIdNavGraph(
     ) {
         composable(Screen.Home.route) {
             HomeScreen(
-                onNavigateToCropAudit = { isFrontBack ->
-                    viewModel.setFrontBackMode(isFrontBack)
+                onSingleDocumentSelected = { uri ->
+                    viewModel.setSingleDocument(uri)
+                    navController.navigate(Screen.CropAudit.route)
+                },
+                onFrontBackDocumentsSelected = { frontUri, backUri ->
+                    viewModel.setFrontBackDocuments(frontUri, backUri)
                     navController.navigate(Screen.CropAudit.route)
                 }
             )
@@ -33,6 +37,7 @@ fun SafeIdNavGraph(
 
         composable(Screen.CropAudit.route) {
             CropAuditScreen(
+                viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToWatermarkStudio = { navController.navigate(Screen.WatermarkStudio.route) }
             )
@@ -58,4 +63,3 @@ fun SafeIdNavGraph(
         }
     }
 }
-
