@@ -1,0 +1,61 @@
+package com.saaddev.safeid.ui.navigation
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import com.saaddev.safeid.ui.screens.CropAuditScreen
+import com.saaddev.safeid.ui.screens.ExportShareScreen
+import com.saaddev.safeid.ui.screens.HomeScreen
+import com.saaddev.safeid.ui.screens.WatermarkStudioScreen
+import com.saaddev.safeid.ui.viewmodel.SafeIdViewModel
+
+@Composable
+fun SafeIdNavGraph(
+    navController: NavHostController,
+    viewModel: SafeIdViewModel,
+    modifier: Modifier = Modifier
+) {
+    NavHost(
+        navController = navController,
+        startDestination = Screen.Home.route,
+        modifier = modifier
+    ) {
+        composable(Screen.Home.route) {
+            HomeScreen(
+                onNavigateToCropAudit = { isFrontBack ->
+                    viewModel.setFrontBackMode(isFrontBack)
+                    navController.navigate(Screen.CropAudit.route)
+                }
+            )
+        }
+
+        composable(Screen.CropAudit.route) {
+            CropAuditScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToWatermarkStudio = { navController.navigate(Screen.WatermarkStudio.route) }
+            )
+        }
+
+        composable(Screen.WatermarkStudio.route) {
+            WatermarkStudioScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToExportShare = { navController.navigate(Screen.ExportShare.route) }
+            )
+        }
+
+        composable(Screen.ExportShare.route) {
+            ExportShareScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onResetToHome = {
+                    viewModel.resetSession()
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+    }
+}
+
