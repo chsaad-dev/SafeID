@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -146,8 +147,7 @@ fun CropAuditScreen(
     LaunchedEffect(sessionState.primaryImageUri) {
         val uri = sessionState.primaryImageUri ?: return@LaunchedEffect
         withContext(Dispatchers.IO) {
-            val report = ExifPrivacyEngine.inspectPrivacyAudit(context, uri)
-            val decoded = ExifPrivacyEngine.decodeSafely(context, uri)
+            val (report, decoded) = ExifPrivacyEngine.loadAndAudit(context, uri)
             withContext(Dispatchers.Main) {
                 frontReport = report
                 frontBitmap = decoded
@@ -160,8 +160,7 @@ fun CropAuditScreen(
     LaunchedEffect(sessionState.secondaryImageUri) {
         val uri = sessionState.secondaryImageUri ?: return@LaunchedEffect
         withContext(Dispatchers.IO) {
-            val report = ExifPrivacyEngine.inspectPrivacyAudit(context, uri)
-            val decoded = ExifPrivacyEngine.decodeSafely(context, uri)
+            val (report, decoded) = ExifPrivacyEngine.loadAndAudit(context, uri)
             withContext(Dispatchers.Main) {
                 backReport = report
                 backBitmap = decoded
@@ -390,7 +389,9 @@ fun CropAuditScreen(
                     )
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         ScanFilter.entries.forEach { filter ->

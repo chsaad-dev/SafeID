@@ -4,6 +4,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -69,12 +72,34 @@ class MainActivity : ComponentActivity() {
 
     private fun extractIncomingImageUri(intent: Intent?): Uri? {
         if (intent?.action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true) {
-            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val sourceUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
             } else {
                 @Suppress("DEPRECATION")
                 intent.getParcelableExtra(Intent.EXTRA_STREAM)
             } ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri ?: intent.data
+
+            if (sourceUri != null) {
+                return try {
+                    val exportDir = File(cacheDir, "safeid_exports").apply { mkdirs() }
+                    val tempFile = File(exportDir, "incoming_share_temp.jpg")
+                    val inputStream = if (sourceUri.scheme == "file" || sourceUri.scheme == null) {
+                        val path = sourceUri.path
+                        if (path != null) FileInputStream(File(path)) else null
+                    } else {
+                        contentResolver.openInputStream(sourceUri)
+                    }
+                    inputStream?.use { input ->
+                        FileOutputStream(tempFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    Uri.fromFile(tempFile)
+                } catch (e: Exception) {
+                    android.util.Log.e("SafeID", "copyIncomingShareStream error", e)
+                    sourceUri
+                }
+            }
         }
         return null
     }

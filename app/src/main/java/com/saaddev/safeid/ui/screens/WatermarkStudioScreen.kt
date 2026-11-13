@@ -371,14 +371,11 @@ fun WatermarkStudioScreen(
                                 SegmentedButton(
                                     selected = interactionMode == mode,
                                     onClick = { interactionMode = mode },
-                                    shape = SegmentedButtonDefaults.itemShape(index = index, count = 2)
+                                    shape = SegmentedButtonDefaults.itemShape(index = index, count = 2),
+                                    icon = {
+                                        SegmentedButtonDefaults.Icon(active = interactionMode == mode)
+                                    }
                                 ) {
-                                    Icon(
-                                        imageVector = if (mode == StudioInteractionMode.WATERMARK) Icons.AutoMirrored.Filled.BrandingWatermark else Icons.Default.Brush,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(mode.label, fontSize = 11.sp, maxLines = 1)
                                 }
                             }

@@ -5,7 +5,11 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
+import android.util.Log
 import androidx.exifinterface.media.ExifInterface
+import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.FileInputStream
 import java.io.InputStream
 import java.util.Locale
 import kotlin.math.max
@@ -46,35 +50,111 @@ object ExifPrivacyEngine {
 
     private const val DEFAULT_MAX_DIMENSION = 2400
 
+    fun openStream(context: Context, uri: Uri): InputStream? {
+        return try {
+            if (uri.scheme == "file" || uri.scheme == null) {
+                val path = uri.path ?: return null
+                FileInputStream(File(path))
+            } else {
+                context.contentResolver.openInputStream(uri)
+            }
+        } catch (e: Exception) {
+            Log.e("SafeID", "openStream failed for $uri: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Loads the raw bytes of [uri] exactly once and produces both the [PrivacyAuditReport]
+     * and the safely downscaled and orientation-corrected [Bitmap].
+     * Reading the stream only once guarantees compatibility with single-read stream providers
+     * like modern Android PhotoPicker pipes and transient grant URIs.
+     */
+    fun loadAndAudit(
+        context: Context,
+        uri: Uri,
+        maxDimension: Int = DEFAULT_MAX_DIMENSION
+    ): Pair<PrivacyAuditReport, Bitmap?> {
+        Log.d("SafeID", "loadAndAudit called for $uri")
+        val bytes = try {
+            openStream(context, uri)?.use { it.readBytes() }
+        } catch (e: Exception) {
+            Log.e("SafeID", "loadAndAudit failed reading stream for $uri", e)
+            null
+        }
+
+        if (bytes == null || bytes.isEmpty()) {
+            Log.e("SafeID", "loadAndAudit: bytes were null or empty for $uri")
+            return Pair(
+                PrivacyAuditReport(false, null, null, null, null, null, emptyList(), 0),
+                null
+            )
+        }
+
+        val report = try {
+            inspectStream(ByteArrayInputStream(bytes))
+        } catch (e: Exception) {
+            Log.e("SafeID", "inspectStream failed", e)
+            PrivacyAuditReport(false, null, null, null, null, null, emptyList(), 0)
+        }
+
+        val bitmap = decodeFromBytes(bytes, maxDimension)
+        return Pair(report, bitmap)
+    }
+
+    fun decodeFromBytes(bytes: ByteArray, maxDimension: Int = DEFAULT_MAX_DIMENSION): Bitmap? {
+        return try {
+            val orientation = try {
+                ExifInterface(ByteArrayInputStream(bytes)).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
+            } catch (_: Exception) {
+                ExifInterface.ORIENTATION_NORMAL
+            }
+
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+
+            if (options.outWidth <= 0 || options.outHeight <= 0) {
+                Log.e("SafeID", "decodeFromBytes: invalid dimensions ${options.outWidth} x ${options.outHeight}")
+                return null
+            }
+
+            options.inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDimension)
+            options.inJustDecodeBounds = false
+            options.inPreferredConfig = Bitmap.Config.ARGB_8888
+
+            val sampledBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: run {
+                Log.e("SafeID", "decodeFromBytes: decodeByteArray returned null")
+                return null
+            }
+
+            val orientedBitmap = applyExifOrientation(sampledBitmap, orientation)
+            val currentMax = max(orientedBitmap.width, orientedBitmap.height)
+            val result = if (currentMax > maxDimension) {
+                val scale = maxDimension.toFloat() / currentMax
+                val newW = (orientedBitmap.width * scale).toInt().coerceAtLeast(1)
+                val newH = (orientedBitmap.height * scale).toInt().coerceAtLeast(1)
+                val scaled = Bitmap.createScaledBitmap(orientedBitmap, newW, newH, true)
+                if (scaled != orientedBitmap) orientedBitmap.recycle()
+                scaled
+            } else {
+                orientedBitmap
+            }
+            Log.d("SafeID", "decodeFromBytes success: ${result.width} x ${result.height}")
+            result
+        } catch (e: Exception) {
+            Log.e("SafeID", "decodeFromBytes failed", e)
+            null
+        }
+    }
+
     /**
      * Inspects image metadata at [uri] via [ExifInterface] and returns a structured privacy audit report.
      */
     fun inspectPrivacyAudit(context: Context, uri: Uri): PrivacyAuditReport {
-        return try {
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                inspectStream(stream)
-            } ?: PrivacyAuditReport(
-                hasExifData = false,
-                gpsCoordinates = null,
-                cameraMake = null,
-                cameraModel = null,
-                dateTimeTaken = null,
-                software = null,
-                detectedTags = emptyList(),
-                strippedTagCount = 0
-            )
-        } catch (_: Exception) {
-            PrivacyAuditReport(
-                hasExifData = false,
-                gpsCoordinates = null,
-                cameraMake = null,
-                cameraModel = null,
-                dateTimeTaken = null,
-                software = null,
-                detectedTags = emptyList(),
-                strippedTagCount = 0
-            )
-        }
+        return loadAndAudit(context, uri).first
     }
 
     /**
@@ -152,54 +232,9 @@ object ExifPrivacyEngine {
         uri: Uri,
         maxDimension: Int = DEFAULT_MAX_DIMENSION
     ): Bitmap? {
-        val orientation = readOrientation(context, uri)
-
-        // Pass 1: Decode bounds only
-        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use { stream ->
-            BitmapFactory.decodeStream(stream, null, options)
-        } ?: return null
-
-        if (options.outWidth <= 0 || options.outHeight <= 0) return null
-
-        // Pass 2: Calculate safe inSampleSize
-        options.inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDimension)
-        options.inJustDecodeBounds = false
-        options.inPreferredConfig = Bitmap.Config.ARGB_8888
-
-        val sampledBitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
-            BitmapFactory.decodeStream(stream, null, options)
-        } ?: return null
-
-        // Pass 3: Apply EXIF orientation
-        val orientedBitmap = applyExifOrientation(sampledBitmap, orientation)
-
-        // Pass 4: Ensure max dimension <= maxDimension
-        val currentMax = max(orientedBitmap.width, orientedBitmap.height)
-        return if (currentMax > maxDimension) {
-            val scale = maxDimension.toFloat() / currentMax
-            val newW = (orientedBitmap.width * scale).toInt().coerceAtLeast(1)
-            val newH = (orientedBitmap.height * scale).toInt().coerceAtLeast(1)
-            val scaled = Bitmap.createScaledBitmap(orientedBitmap, newW, newH, true)
-            if (scaled != orientedBitmap) orientedBitmap.recycle()
-            scaled
-        } else {
-            orientedBitmap
-        }
+        return loadAndAudit(context, uri, maxDimension).second
     }
 
-    private fun readOrientation(context: Context, uri: Uri): Int {
-        return try {
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                ExifInterface(stream).getAttributeInt(
-                    ExifInterface.TAG_ORIENTATION,
-                    ExifInterface.ORIENTATION_NORMAL
-                )
-            } ?: ExifInterface.ORIENTATION_NORMAL
-        } catch (_: Exception) {
-            ExifInterface.ORIENTATION_NORMAL
-        }
-    }
 
     private fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): Int {
         var sampleSize = 1
