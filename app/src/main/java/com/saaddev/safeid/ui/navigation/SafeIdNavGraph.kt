@@ -45,6 +45,7 @@ fun SafeIdNavGraph(
 
         composable(Screen.WatermarkStudio.route) {
             WatermarkStudioScreen(
+                viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToExportShare = { navController.navigate(Screen.ExportShare.route) }
             )
