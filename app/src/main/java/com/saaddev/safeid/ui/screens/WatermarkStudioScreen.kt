@@ -73,6 +73,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -181,6 +182,14 @@ fun WatermarkStudioScreen(
             frontBlurStrokes = newStrokes
         } else {
             backBlurStrokes = newStrokes
+        }
+    }
+
+    fun addBlurStroke(newStroke: BlurStroke) {
+        if (activeSide == ActiveStudioSide.FRONT) {
+            frontBlurStrokes = frontBlurStrokes + newStroke
+        } else {
+            backBlurStrokes = backBlurStrokes + newStroke
         }
     }
 
@@ -427,7 +436,7 @@ fun WatermarkStudioScreen(
                             opacity = watermarkOpacity,
                             isBlurMode = interactionMode == StudioInteractionMode.BLUR_BRUSH,
                             onNewStrokeCompleted = { newStroke ->
-                                updateCurrentBlurStrokes(currentBlurStrokes + newStroke)
+                                addBlurStroke(newStroke)
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -752,6 +761,7 @@ private fun LiveStudioCanvas(
     modifier: Modifier = Modifier
 ) {
     val imageBitmap = remember(bitmap) { bitmap.asImageBitmap() }
+    val onNewStrokeCompletedState by rememberUpdatedState(onNewStrokeCompleted)
     var currentDragStroke by remember { mutableStateOf<List<NormalizedPoint>>(emptyList()) }
     var imageDisplayRect by remember { mutableStateOf(Rect.Zero) }
 
@@ -783,7 +793,7 @@ private fun LiveStudioCanvas(
                         },
                         onDragEnd = {
                             if (currentDragStroke.isNotEmpty()) {
-                                onNewStrokeCompleted(BlurStroke(currentDragStroke, 0.045f))
+                                onNewStrokeCompletedState(BlurStroke(currentDragStroke, 0.045f))
                                 currentDragStroke = emptyList()
                             }
                         },

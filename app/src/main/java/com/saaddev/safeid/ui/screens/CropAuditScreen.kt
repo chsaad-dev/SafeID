@@ -61,6 +61,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -548,6 +549,9 @@ private fun PerspectiveCropCanvas(
 
     val imageBitmap = remember(bitmap) { bitmap.asImageBitmap() }
 
+    val currentCorners by rememberUpdatedState(corners)
+    val onCornersChangedState by rememberUpdatedState(onCornersChanged)
+
     var activeCorner by remember { mutableStateOf<CornerId?>(null) }
     var currentTouch by remember { mutableStateOf(Offset.Zero) }
 
@@ -559,15 +563,17 @@ private fun PerspectiveCropCanvas(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(bitmap) {
+                    var activeCorners = currentCorners
                     detectDragGestures(
                         onDragStart = { offset ->
-                            currentTouch = offset
                             val rect = imageRect
+                            val liveCorners = currentCorners
+                            activeCorners = liveCorners
                             if (rect.width > 0 && rect.height > 0) {
-                                val tl = Offset(rect.left + corners.topLeft.x * rect.width, rect.top + corners.topLeft.y * rect.height)
-                                val tr = Offset(rect.left + corners.topRight.x * rect.width, rect.top + corners.topRight.y * rect.height)
-                                val br = Offset(rect.left + corners.bottomRight.x * rect.width, rect.top + corners.bottomRight.y * rect.height)
-                                val bl = Offset(rect.left + corners.bottomLeft.x * rect.width, rect.top + corners.bottomLeft.y * rect.height)
+                                val tl = Offset(rect.left + liveCorners.topLeft.x * rect.width, rect.top + liveCorners.topLeft.y * rect.height)
+                                val tr = Offset(rect.left + liveCorners.topRight.x * rect.width, rect.top + liveCorners.topRight.y * rect.height)
+                                val br = Offset(rect.left + liveCorners.bottomRight.x * rect.width, rect.top + liveCorners.bottomRight.y * rect.height)
+                                val bl = Offset(rect.left + liveCorners.bottomLeft.x * rect.width, rect.top + liveCorners.bottomLeft.y * rect.height)
 
                                 val dTl = hypot(offset.x - tl.x, offset.y - tl.y)
                                 val dTr = hypot(offset.x - tr.x, offset.y - tr.y)
@@ -576,32 +582,42 @@ private fun PerspectiveCropCanvas(
 
                                 val minDistance = minOf(dTl, dTr, dBr, dBl)
                                 if (minDistance <= touchHitboxPx) {
-                                    activeCorner = when (minDistance) {
+                                    val matchedCorner = when (minDistance) {
                                         dTl -> CornerId.TOP_LEFT
                                         dTr -> CornerId.TOP_RIGHT
                                         dBr -> CornerId.BOTTOM_RIGHT
                                         else -> CornerId.BOTTOM_LEFT
                                     }
+                                    activeCorner = matchedCorner
+                                    currentTouch = when (matchedCorner) {
+                                        CornerId.TOP_LEFT -> tl
+                                        CornerId.TOP_RIGHT -> tr
+                                        CornerId.BOTTOM_RIGHT -> br
+                                        CornerId.BOTTOM_LEFT -> bl
+                                    }
+                                } else {
+                                    activeCorner = null
                                 }
                             }
                         },
                         onDrag = { change, dragAmount ->
                             change.consume()
-                            currentTouch += dragAmount
-                            val rect = imageRect
                             val corner = activeCorner
+                            val rect = imageRect
                             if (rect.width > 0 && rect.height > 0 && corner != null) {
+                                currentTouch += dragAmount
                                 val normX = ((currentTouch.x - rect.left) / rect.width).coerceIn(0f, 1f)
                                 val normY = ((currentTouch.y - rect.top) / rect.height).coerceIn(0f, 1f)
                                 val updatedPoint = NormalizedPoint(normX, normY)
 
                                 val newCorners = when (corner) {
-                                    CornerId.TOP_LEFT -> corners.copy(topLeft = updatedPoint)
-                                    CornerId.TOP_RIGHT -> corners.copy(topRight = updatedPoint)
-                                    CornerId.BOTTOM_RIGHT -> corners.copy(bottomRight = updatedPoint)
-                                    CornerId.BOTTOM_LEFT -> corners.copy(bottomLeft = updatedPoint)
+                                    CornerId.TOP_LEFT -> activeCorners.copy(topLeft = updatedPoint)
+                                    CornerId.TOP_RIGHT -> activeCorners.copy(topRight = updatedPoint)
+                                    CornerId.BOTTOM_RIGHT -> activeCorners.copy(bottomRight = updatedPoint)
+                                    CornerId.BOTTOM_LEFT -> activeCorners.copy(bottomLeft = updatedPoint)
                                 }
-                                onCornersChanged(newCorners)
+                                activeCorners = newCorners
+                                onCornersChangedState(newCorners)
                             }
                         },
                         onDragEnd = { activeCorner = null },
