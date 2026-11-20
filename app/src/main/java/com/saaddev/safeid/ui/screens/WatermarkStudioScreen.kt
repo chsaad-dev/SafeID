@@ -1,69 +1,48 @@
 package com.saaddev.safeid.ui.screens
 
 import android.graphics.Bitmap
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.BrandingWatermark
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.Brush
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.FormatPaint
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -85,7 +64,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -98,12 +79,7 @@ import com.saaddev.safeid.engine.ExportAndCompressionEngine
 import com.saaddev.safeid.engine.NormalizedPoint
 import com.saaddev.safeid.engine.WatermarkAndBlurEngine
 import com.saaddev.safeid.engine.WatermarkColorPreset
-import com.saaddev.safeid.ui.theme.AlertRed
-import com.saaddev.safeid.ui.theme.SafeGreen
-import com.saaddev.safeid.ui.theme.Slate400
-import com.saaddev.safeid.ui.theme.Slate700
-import com.saaddev.safeid.ui.theme.Teal500
-import com.saaddev.safeid.ui.theme.Teal600
+import com.saaddev.safeid.ui.theme.SafeIdTheme
 import com.saaddev.safeid.ui.viewmodel.SafeIdViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -114,8 +90,8 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 private enum class StudioInteractionMode(val label: String) {
-    WATERMARK("Watermark Mode"),
-    BLUR_BRUSH("Blur Redact Brush")
+    WATERMARK("Watermark"),
+    BLUR_BRUSH("Blur Brush")
 }
 
 private enum class WatermarkPreset(val chipLabel: String, val textTemplate: String) {
@@ -123,8 +99,8 @@ private enum class WatermarkPreset(val chipLabel: String, val textTemplate: Stri
     KYC("Bank / KYC", "FOR BANK & KYC VERIFICATION ONLY"),
     JOB("Job Application", "FOR JOB APPLICATION ONLY"),
     VISA("Visa / Travel", "FOR VISA & TRAVEL APPLICATION ONLY"),
-    RENTAL("Rental Agreement", "FOR RENTAL AGREEMENT ONLY"),
-    CUSTOM("Custom Text", "CONFIDENTIAL & PRIVACY PROTECTED")
+    RENTAL("Rental", "FOR RENTAL AGREEMENT ONLY"),
+    CUSTOM("Custom", "CONFIDENTIAL & PRIVACY PROTECTED")
 }
 
 private enum class ActiveStudioSide {
@@ -132,7 +108,6 @@ private enum class ActiveStudioSide {
     BACK
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun WatermarkStudioScreen(
     viewModel: SafeIdViewModel,
@@ -142,6 +117,7 @@ fun WatermarkStudioScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val sessionState by viewModel.sessionState.collectAsState()
+    val colors = SafeIdTheme.colors
 
     var activeSide by remember { mutableStateOf(ActiveStudioSide.FRONT) }
     var interactionMode by remember { mutableStateOf(StudioInteractionMode.WATERMARK) }
@@ -158,7 +134,6 @@ fun WatermarkStudioScreen(
     // Redaction blur strokes
     var frontBlurStrokes by remember { mutableStateOf<List<BlurStroke>>(emptyList()) }
     var backBlurStrokes by remember { mutableStateOf<List<BlurStroke>>(emptyList()) }
-    var liveDragPoints by remember { mutableStateOf<List<NormalizedPoint>>(emptyList()) }
 
     // Output & Compression config
     var selectedFormat by remember {
@@ -238,7 +213,7 @@ fun WatermarkStudioScreen(
                 watermarkText = fullWatermarkText,
                 watermarkColorInt = selectedColorInt,
                 watermarkOpacity = watermarkOpacity,
-                autoAppendDate = false, // already appended in fullWatermarkText
+                autoAppendDate = false,
                 spacingMultiplier = 1.0f,
                 blurStrokes = frontBlurStrokes
             )
@@ -305,128 +280,233 @@ fun WatermarkStudioScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text("Watermark & Redact Studio", fontWeight = FontWeight.Bold)
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.bgPrimary)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+    ) {
+        // 1. Fixed Top Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onNavigateBack,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = colors.textPrimary,
+                    modifier = Modifier.size(20.dp)
                 )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Watermark & Size",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Front + Back Tab Row (when in Front+Back mode)
-            if (sessionState.isFrontBackMode) {
-                PrimaryTabRow(
-                    selectedTabIndex = if (activeSide == ActiveStudioSide.FRONT) 0 else 1,
-                    containerColor = MaterialTheme.colorScheme.surface
+
+        // Fixed Front/Back Switcher (in Front + Back mode)
+        if (sessionState.isFrontBackMode) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = colors.bgSubtle
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Tab(
-                        selected = activeSide == ActiveStudioSide.FRONT,
-                        onClick = { activeSide = ActiveStudioSide.FRONT },
-                        text = {
-                            Text(
-                                "Preview: Front Side",
-                                fontWeight = if (activeSide == ActiveStudioSide.FRONT) FontWeight.Bold else FontWeight.Normal
+                    val isFront = activeSide == ActiveStudioSide.FRONT
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(8.dp))
+                            .then(
+                                if (isFront) {
+                                    Modifier
+                                        .background(colors.bgElevated)
+                                        .border(1.dp, colors.borderHairline, RoundedCornerShape(8.dp))
+                                } else {
+                                    Modifier.background(Color.Transparent)
+                                }
                             )
-                        }
-                    )
-                    Tab(
-                        selected = activeSide == ActiveStudioSide.BACK,
-                        onClick = { activeSide = ActiveStudioSide.BACK },
-                        text = {
-                            Text(
-                                "Preview: Back Side",
-                                fontWeight = if (activeSide == ActiveStudioSide.BACK) FontWeight.Bold else FontWeight.Normal
+                            .clickable { activeSide = ActiveStudioSide.FRONT },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Front Side",
+                            fontSize = 13.sp,
+                            fontWeight = if (isFront) FontWeight.SemiBold else FontWeight.Medium,
+                            color = if (isFront) colors.textPrimary else colors.textSecondary,
+                            maxLines = 1
+                        )
+                    }
+
+                    val isBack = activeSide == ActiveStudioSide.BACK
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(8.dp))
+                            .then(
+                                if (isBack) {
+                                    Modifier
+                                        .background(colors.bgElevated)
+                                        .border(1.dp, colors.borderHairline, RoundedCornerShape(8.dp))
+                                } else {
+                                    Modifier.background(Color.Transparent)
+                                }
                             )
-                        }
-                    )
+                            .clickable { activeSide = ActiveStudioSide.BACK },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Back Side",
+                            fontSize = 13.sp,
+                            fontWeight = if (isBack) FontWeight.SemiBold else FontWeight.Medium,
+                            color = if (isBack) colors.textPrimary else colors.textSecondary,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
-            // 1. Live Interactive Preview Canvas
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        // 2. Pinned Live Preview Card (Fixed height ~230dp, Zero Scroll Blindness)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(230.dp)
+                .padding(horizontal = 20.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = colors.bgElevated,
+            border = BorderStroke(1.dp, colors.borderHairline),
+            shadowElevation = 0.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(10.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                // Top row: Segmented mode toggle + Undo button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Interaction Mode Segmented Switch + Undo Button
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = colors.bgSubtle,
+                        modifier = Modifier.height(32.dp)
                     ) {
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
-                            StudioInteractionMode.entries.forEachIndexed { index, mode ->
-                                SegmentedButton(
-                                    selected = interactionMode == mode,
-                                    onClick = { interactionMode = mode },
-                                    shape = SegmentedButtonDefaults.itemShape(index = index, count = 2),
-                                    icon = {
-                                        SegmentedButtonDefaults.Icon(active = interactionMode == mode)
-                                    }
-                                ) {
-                                    Text(mode.label, fontSize = 11.sp, maxLines = 1)
-                                }
-                            }
-                        }
-
-                        // Undo Blur Button
-                        AnimatedVisibility(visible = interactionMode == StudioInteractionMode.BLUR_BRUSH) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                IconButton(
-                                    onClick = {
-                                        if (currentBlurStrokes.isNotEmpty()) {
-                                            updateCurrentBlurStrokes(currentBlurStrokes.dropLast(1))
+                        Row(
+                            modifier = Modifier.padding(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val isWatermark = interactionMode == StudioInteractionMode.WATERMARK
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .then(
+                                        if (isWatermark) {
+                                            Modifier
+                                                .background(colors.bgElevated)
+                                                .border(1.dp, colors.borderHairline, RoundedCornerShape(6.dp))
+                                        } else {
+                                            Modifier.background(Color.Transparent)
                                         }
-                                    },
-                                    enabled = currentBlurStrokes.isNotEmpty()
-                                ) {
-                                    Icon(
-                                        Icons.AutoMirrored.Filled.Undo,
-                                        contentDescription = "Undo Blur",
-                                        tint = if (currentBlurStrokes.isNotEmpty()) Teal500 else Slate400
                                     )
-                                }
+                                    .clickable { interactionMode = StudioInteractionMode.WATERMARK }
+                                    .padding(horizontal = 12.dp, vertical = 5.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Watermark",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isWatermark) FontWeight.SemiBold else FontWeight.Medium,
+                                    color = if (isWatermark) colors.textPrimary else colors.textSecondary
+                                )
+                            }
+
+                            val isBlur = interactionMode == StudioInteractionMode.BLUR_BRUSH
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .then(
+                                        if (isBlur) {
+                                            Modifier
+                                                .background(colors.bgElevated)
+                                                .border(1.dp, colors.borderHairline, RoundedCornerShape(6.dp))
+                                        } else {
+                                            Modifier.background(Color.Transparent)
+                                        }
+                                    )
+                                    .clickable { interactionMode = StudioInteractionMode.BLUR_BRUSH }
+                                    .padding(horizontal = 12.dp, vertical = 5.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Blur Brush",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isBlur) FontWeight.SemiBold else FontWeight.Medium,
+                                    color = if (isBlur) colors.textPrimary else colors.textSecondary
+                                )
                             }
                         }
                     }
 
                     if (interactionMode == StudioInteractionMode.BLUR_BRUSH) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
+                        TextButton(
+                            onClick = {
+                                if (currentBlurStrokes.isNotEmpty()) {
+                                    updateCurrentBlurStrokes(currentBlurStrokes.dropLast(1))
+                                }
+                            },
+                            enabled = currentBlurStrokes.isNotEmpty(),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "Drag your finger across signatures, barcodes, or IDs to pixelate and redact.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Teal500,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                text = "Undo",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (currentBlurStrokes.isNotEmpty()) colors.textPrimary else colors.textTertiary
                             )
                         }
                     }
+                }
 
-                    // Canvas View
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Frame with bgSubtle background - NO harsh black letterbox bars
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(colors.bgSubtle),
+                    contentAlignment = Alignment.Center
+                ) {
                     val displayBitmap = blurredPreviewBitmap ?: currentBaseBitmap
                     if (displayBitmap != null) {
                         LiveStudioCanvas(
@@ -438,71 +518,79 @@ fun WatermarkStudioScreen(
                             onNewStrokeCompleted = { newStroke ->
                                 addBlurStroke(newStroke)
                             },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(260.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color.Black)
+                            modifier = Modifier.fillMaxSize()
                         )
                     } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(color = Teal500)
-                        }
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = colors.accentSurgical,
+                            strokeWidth = 2.dp
+                        )
                     }
                 }
             }
+        }
 
-            // 2. 1-Tap Purpose Presets & Customization
-            Card(
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 3. Scrollable Customization Controls Area
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Card A: Watermark Purpose & Text
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                color = colors.bgElevated,
+                border = BorderStroke(1.dp, colors.borderHairline),
+                shadowElevation = 0.dp
             ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "Watermark Purpose Preset",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
+                        text = "Watermark Purpose",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary
                     )
 
-                    // Horizontal Scrollable Chips
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
+                    // LazyRow for presets
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        WatermarkPreset.entries.forEach { preset ->
+                        items(WatermarkPreset.entries.toTypedArray()) { preset ->
                             val isSelected = selectedPreset == preset
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) colors.accentPrimary else colors.bgSubtle,
+                                border = if (isSelected) null else BorderStroke(1.dp, colors.borderHairline),
+                                modifier = Modifier.clickable {
                                     selectedPreset = preset
                                     customWatermarkText = preset.textTemplate
-                                },
-                                label = { Text(preset.chipLabel, fontSize = 12.sp) },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                } else null,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Teal500.copy(alpha = 0.2f),
-                                    selectedLabelColor = Teal500,
-                                    selectedLeadingIconColor = Teal500
-                                ),
-                                shape = RoundedCornerShape(10.dp)
-                            )
+                                }
+                            ) {
+                                Text(
+                                    text = preset.chipLabel,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                    color = if (isSelected) colors.onAccentPrimary else colors.textSecondary,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                                )
+                            }
                         }
                     }
 
-                    // Editable Watermark Text Field
+                    // Watermark Text Field
                     OutlinedTextField(
                         value = customWatermarkText,
                         onValueChange = {
@@ -512,7 +600,18 @@ fun WatermarkStudioScreen(
                         label = { Text("Watermark Text") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = colors.accentPrimary,
+                            unfocusedBorderColor = colors.borderHairline,
+                            focusedLabelColor = colors.accentPrimary,
+                            unfocusedLabelColor = colors.textSecondary,
+                            focusedTextColor = colors.textPrimary,
+                            unfocusedTextColor = colors.textPrimary,
+                            cursorColor = colors.accentPrimary,
+                            focusedContainerColor = colors.bgElevated,
+                            unfocusedContainerColor = colors.bgElevated
+                        )
                     )
 
                     // Include Today's Date Toggle
@@ -521,82 +620,156 @@ fun WatermarkStudioScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.DateRange, contentDescription = null, tint = Teal500, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text("Include Today's Date", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                Text("Appends • $todayDateString", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                        Column {
+                            Text(
+                                text = "Include Today's Date",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = colors.textPrimary
+                            )
+                            Text(
+                                text = "Appends $todayDateString",
+                                fontSize = 12.sp,
+                                color = colors.textSecondary,
+                                style = TextStyle(fontFeatureSettings = "tnum")
+                            )
                         }
+
                         Switch(
                             checked = includeDate,
                             onCheckedChange = { includeDate = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Teal500)
-                        )
-                    }
-
-                    HorizontalDivider()
-
-                    // Opacity Slider
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Opacity", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "${(watermarkOpacity * 100).roundToInt()}%",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Teal500
-                        )
-                    }
-                    Slider(
-                        value = watermarkOpacity,
-                        onValueChange = { watermarkOpacity = it },
-                        valueRange = 0.10f..0.60f,
-                        colors = SliderDefaults.colors(thumbColor = Teal500, activeTrackColor = Teal600)
-                    )
-
-                    // Watermark Color Swatches
-                    Text("Watermark Ink Color", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        ColorSwatchItem(
-                            label = "Slate Grey",
-                            color = Color(0xFF64748B),
-                            isSelected = selectedColorInt == WatermarkColorPreset.GREY.colorInt,
-                            modifier = Modifier.weight(1f),
-                            onClick = { selectedColorInt = WatermarkColorPreset.GREY.colorInt }
-                        )
-
-                        ColorSwatchItem(
-                            label = "Crimson Red",
-                            color = Color(0xFFDC2626),
-                            isSelected = selectedColorInt == WatermarkColorPreset.RED.colorInt,
-                            modifier = Modifier.weight(1f),
-                            onClick = { selectedColorInt = WatermarkColorPreset.RED.colorInt }
-                        )
-
-                        ColorSwatchItem(
-                            label = "Navy Blue",
-                            color = Color(0xFF2563EB),
-                            isSelected = selectedColorInt == WatermarkColorPreset.BLUE.colorInt,
-                            modifier = Modifier.weight(1f),
-                            onClick = { selectedColorInt = WatermarkColorPreset.BLUE.colorInt }
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = colors.onAccentPrimary,
+                                checkedTrackColor = colors.accentPrimary,
+                                uncheckedThumbColor = colors.textSecondary,
+                                uncheckedTrackColor = colors.bgSubtle,
+                                uncheckedBorderColor = colors.borderHairline
+                            )
                         )
                     }
                 }
             }
 
-            // 3. Output Format & Target KB Selector
-            Card(
+            // Card B: Style & Appearance (Opacity & Ink Color)
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                color = colors.bgElevated,
+                border = BorderStroke(1.dp, colors.borderHairline),
+                shadowElevation = 0.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Opacity Row & Slider
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Opacity",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textPrimary
+                        )
+                        Text(
+                            text = "${(watermarkOpacity * 100).roundToInt()}%",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textPrimary,
+                            style = TextStyle(fontFeatureSettings = "tnum")
+                        )
+                    }
+
+                    Slider(
+                        value = watermarkOpacity,
+                        onValueChange = { watermarkOpacity = it },
+                        valueRange = 0.10f..0.60f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = colors.accentPrimary,
+                            activeTrackColor = colors.accentPrimary,
+                            inactiveTrackColor = colors.borderHairline
+                        )
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(colors.borderHairline)
+                    )
+
+                    // Watermark Ink Color: 3 equal-width single-line pills
+                    Text(
+                        text = "Watermark Ink Color",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val colorOptions = listOf(
+                            Triple("Slate", Color(0xFF64748B), WatermarkColorPreset.GREY.colorInt),
+                            Triple("Red", Color(0xFFDC2626), WatermarkColorPreset.RED.colorInt),
+                            Triple("Blue", Color(0xFF2563EB), WatermarkColorPreset.BLUE.colorInt)
+                        )
+
+                        colorOptions.forEach { (label, dotColor, presetInt) ->
+                            val isSelected = selectedColorInt == presetInt
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .clickable { selectedColorInt = presetInt },
+                                shape = RoundedCornerShape(10.dp),
+                                color = colors.bgSubtle,
+                                border = if (isSelected) {
+                                    BorderStroke(1.5.dp, colors.accentPrimary)
+                                } else {
+                                    BorderStroke(1.dp, colors.borderHairline)
+                                }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(10.dp)
+                                            .clip(CircleShape)
+                                            .background(dotColor)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = label,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                        color = colors.textPrimary,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Card C: Output Format & Target Size Limit
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = colors.bgElevated,
+                border = BorderStroke(1.dp, colors.borderHairline),
+                shadowElevation = 0.dp
             ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
@@ -604,144 +777,168 @@ fun WatermarkStudioScreen(
                 ) {
                     Text(
                         text = "Output Format & Compression",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary
                     )
 
-                    // Format Segmented Toggle
+                    // Format Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Format", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = "Format",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colors.textPrimary
+                        )
 
                         if (sessionState.isFrontBackMode) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant
+                                color = colors.bgSubtle,
+                                border = BorderStroke(1.dp, colors.borderHairline)
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(12.dp), tint = Teal500)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("PDF (A4 2-Sided Layout)", fontSize = 12.sp, color = Teal500)
-                                }
+                                Text(
+                                    text = "PDF • A4 2-Sided",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = colors.textPrimary,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
                             }
                         } else {
-                            SingleChoiceSegmentedButtonRow {
-                                ExportFormat.entries.forEachIndexed { index, format ->
-                                    SegmentedButton(
-                                        selected = selectedFormat == format,
-                                        onClick = { selectedFormat = format },
-                                        shape = SegmentedButtonDefaults.itemShape(index = index, count = 2)
-                                    ) {
-                                        Text(format.displayName, fontSize = 12.sp)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = colors.bgSubtle,
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(2.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    listOf(ExportFormat.JPG to "JPG", ExportFormat.PDF to "PDF").forEach { (fmt, label) ->
+                                        val isSelected = selectedFormat == fmt
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .then(
+                                                    if (isSelected) {
+                                                        Modifier
+                                                            .background(colors.bgElevated)
+                                                            .border(1.dp, colors.borderHairline, RoundedCornerShape(6.dp))
+                                                    } else {
+                                                        Modifier.background(Color.Transparent)
+                                                    }
+                                                )
+                                                .clickable { selectedFormat = fmt }
+                                                .padding(horizontal = 12.dp, vertical = 5.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                fontSize = 12.sp,
+                                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                                color = if (isSelected) colors.textPrimary else colors.textSecondary
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
 
-                    // Target KB Limit Pills
-                    Text("Target File Size Limit", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    // Target File Size Limit: 4 equal-width single-line pills
+                    Text(
+                        text = "Target File Size Limit",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.textSecondary
+                    )
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         TargetSize.entries.forEach { sizeOption ->
                             val isSelected = selectedTargetSize == sizeOption
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { selectedTargetSize = sizeOption },
-                                label = { Text(sizeOption.label, fontSize = 12.sp) },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                } else null,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Teal500.copy(alpha = 0.2f),
-                                    selectedLabelColor = Teal500,
-                                    selectedLeadingIconColor = Teal500
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1f)
-                            )
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(38.dp)
+                                    .clickable { selectedTargetSize = sizeOption },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) colors.bgElevated else colors.bgSubtle,
+                                border = if (isSelected) {
+                                    BorderStroke(1.5.dp, colors.accentPrimary)
+                                } else {
+                                    BorderStroke(1.dp, colors.borderHairline)
+                                }
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = sizeOption.label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                        color = if (isSelected) colors.textPrimary else colors.textSecondary,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        style = TextStyle(fontFeatureSettings = "tnum")
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
-            // 4. Primary CTA: Generate Safe File
+        // 4. Pinned Bottom CTA Bar (Full-width 52dp, accentPrimary, no extra icons)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            color = Color.Transparent
+        ) {
             Button(
                 onClick = { executeSafeExport() },
                 enabled = !isExporting && currentBaseBitmap != null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp),
+                    .height(52.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Teal600)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.accentPrimary,
+                    contentColor = colors.onAccentPrimary,
+                    disabledContainerColor = colors.bgSubtle,
+                    disabledContentColor = colors.textTertiary
+                ),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
             ) {
                 if (isExporting) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        color = Color.White,
-                        strokeWidth = 2.5.dp
+                        modifier = Modifier.size(20.dp),
+                        color = colors.onAccentPrimary,
+                        strokeWidth = 2.dp
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("Baking Watermark & Compressing...")
                 } else {
-                    Icon(Icons.Default.Security, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Generate Safe File",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun ColorSwatchItem(
-    label: String,
-    color: Color,
-    isSelected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, Teal500) else null
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .clip(CircleShape)
-                    .background(color)
-                    .border(1.dp, Color.White, CircleShape)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = label,
-                fontSize = 11.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) Teal500 else MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
