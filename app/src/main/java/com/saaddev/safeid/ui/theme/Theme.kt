@@ -6,61 +6,83 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val SafeIdDarkColorScheme = darkColorScheme(
-    primary = Teal500,
-    onPrimary = Slate900,
-    primaryContainer = Teal700,
-    onPrimaryContainer = Slate100,
-    secondary = Teal600,
-    onSecondary = Slate100,
-    background = Slate900,
-    onBackground = Slate100,
-    surface = Slate800,
-    onSurface = Slate100,
-    surfaceVariant = Slate700,
-    onSurfaceVariant = Slate400,
-    outline = Slate600
-)
+object SafeIdTheme {
+    val colors: SafeIdColors
+        @Composable
+        get() = LocalSafeIdColors.current
+}
 
 private val SafeIdLightColorScheme = lightColorScheme(
-    primary = Teal600,
-    onPrimary = Slate100,
-    primaryContainer = Teal500,
-    onPrimaryContainer = Slate900,
-    secondary = Teal700,
-    onSecondary = Slate100,
-    background = Slate100,
-    onBackground = Slate900,
-    surface = androidx.compose.ui.graphics.Color.White,
-    onSurface = Slate900,
-    surfaceVariant = androidx.compose.ui.graphics.Color(0xFFE2E8F0),
-    onSurfaceVariant = Slate600,
-    outline = Slate400
+    primary = LightSafeIdColors.accentPrimary,
+    onPrimary = LightSafeIdColors.onAccentPrimary,
+    primaryContainer = LightSafeIdColors.bgSubtle,
+    onPrimaryContainer = LightSafeIdColors.textPrimary,
+    secondary = LightSafeIdColors.accentSurgical,
+    onSecondary = LightSafeIdColors.onAccentPrimary,
+    background = LightSafeIdColors.bgPrimary,
+    onBackground = LightSafeIdColors.textPrimary,
+    surface = LightSafeIdColors.bgElevated,
+    onSurface = LightSafeIdColors.textPrimary,
+    surfaceVariant = LightSafeIdColors.bgSubtle,
+    onSurfaceVariant = LightSafeIdColors.textSecondary,
+    outline = LightSafeIdColors.borderHairline,
+    outlineVariant = LightSafeIdColors.borderHairline
+)
+
+private val SafeIdDarkColorScheme = darkColorScheme(
+    primary = DarkSafeIdColors.accentPrimary,
+    onPrimary = DarkSafeIdColors.onAccentPrimary,
+    primaryContainer = DarkSafeIdColors.bgSubtle,
+    onPrimaryContainer = DarkSafeIdColors.textPrimary,
+    secondary = DarkSafeIdColors.accentSurgical,
+    onSecondary = DarkSafeIdColors.onAccentPrimary,
+    background = DarkSafeIdColors.bgPrimary,
+    onBackground = DarkSafeIdColors.textPrimary,
+    surface = DarkSafeIdColors.bgElevated,
+    onSurface = DarkSafeIdColors.textPrimary,
+    surfaceVariant = DarkSafeIdColors.bgSubtle,
+    onSurfaceVariant = DarkSafeIdColors.textSecondary,
+    outline = DarkSafeIdColors.borderHairline,
+    outlineVariant = DarkSafeIdColors.borderHairline
 )
 
 @Composable
 fun SafeIDTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: ThemeMode = LocalThemeMode.current,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) SafeIdDarkColorScheme else SafeIdLightColorScheme
+    val systemInDark = isSystemInDarkTheme()
+    val isDark = when (themeMode) {
+        ThemeMode.SYSTEM -> systemInDark
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+
+    val safeIdColors = if (isDark) DarkSafeIdColors else LightSafeIdColors
+    val materialColorScheme = if (isDark) SafeIdDarkColorScheme else SafeIdLightColorScheme
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = !isDark
+            insetsController.isAppearanceLightNavigationBars = !isDark
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalSafeIdColors provides safeIdColors
+    ) {
+        MaterialTheme(
+            colorScheme = materialColorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }

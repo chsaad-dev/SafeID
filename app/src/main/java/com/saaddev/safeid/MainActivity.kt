@@ -10,6 +10,7 @@ import java.io.FileOutputStream
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,7 +20,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.compose.rememberNavController
 import com.saaddev.safeid.ui.navigation.SafeIdNavGraph
 import com.saaddev.safeid.ui.navigation.Screen
+import com.saaddev.safeid.ui.theme.LocalThemeMode
+import com.saaddev.safeid.ui.theme.LocalThemeModeChanger
 import com.saaddev.safeid.ui.theme.SafeIDTheme
+import com.saaddev.safeid.ui.theme.ThemePreference
 import com.saaddev.safeid.ui.viewmodel.SafeIdViewModel
 
 class MainActivity : ComponentActivity() {
@@ -39,24 +43,34 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            SafeIDTheme {
-                val navController = rememberNavController()
+            var themeMode by remember { mutableStateOf(ThemePreference.getThemeMode(this)) }
 
-                // If launched via system share intent, navigate immediately to CropAudit
-                LaunchedEffect(pendingShareUri) {
-                    val uri = pendingShareUri
-                    if (uri != null) {
-                        navController.navigate(Screen.CropAudit.route) {
-                            launchSingleTop = true
-                        }
-                        pendingShareUri = null
-                    }
+            CompositionLocalProvider(
+                LocalThemeMode provides themeMode,
+                LocalThemeModeChanger provides { newMode ->
+                    themeMode = newMode
+                    ThemePreference.setThemeMode(this, newMode)
                 }
+            ) {
+                SafeIDTheme(themeMode = themeMode) {
+                    val navController = rememberNavController()
 
-                SafeIdNavGraph(
-                    navController = navController,
-                    viewModel = viewModel
-                )
+                    // If launched via system share intent, navigate immediately to CropAudit
+                    LaunchedEffect(pendingShareUri) {
+                        val uri = pendingShareUri
+                        if (uri != null) {
+                            navController.navigate(Screen.CropAudit.route) {
+                                launchSingleTop = true
+                            }
+                            pendingShareUri = null
+                        }
+                    }
+
+                    SafeIdNavGraph(
+                        navController = navController,
+                        viewModel = viewModel
+                    )
+                }
             }
         }
     }

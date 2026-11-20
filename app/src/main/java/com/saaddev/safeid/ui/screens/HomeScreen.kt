@@ -1,7 +1,6 @@
 package com.saaddev.safeid.ui.screens
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
@@ -10,6 +9,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,36 +19,35 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -58,7 +57,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -67,9 +65,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.saaddev.safeid.ui.components.AdBannerComposable
-import com.saaddev.safeid.ui.theme.SafeGreen
-import com.saaddev.safeid.ui.theme.Teal500
-import com.saaddev.safeid.ui.theme.Teal600
+import com.saaddev.safeid.ui.theme.LocalThemeMode
+import com.saaddev.safeid.ui.theme.LocalThemeModeChanger
+import com.saaddev.safeid.ui.theme.SafeIdTheme
+import com.saaddev.safeid.ui.theme.ThemeMode
 import java.io.File
 
 private enum class SheetMode {
@@ -90,6 +89,9 @@ fun HomeScreen(
     onFrontBackDocumentsSelected: (frontUri: Uri, backUri: Uri) -> Unit
 ) {
     val context = LocalContext.current
+    val colors = SafeIdTheme.colors
+    val themeMode = LocalThemeMode.current
+    val onThemeModeChanged = LocalThemeModeChanger.current
 
     var sheetMode by remember { mutableStateOf(SheetMode.NONE) }
     var activeTargetSide by remember { mutableStateOf(TargetSide.FRONT) }
@@ -193,56 +195,153 @@ fun HomeScreen(
     }
 
     Scaffold(
+        containerColor = colors.bgPrimary,
         topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Left: SafeID Title and Quiet Offline Subtitle Row
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(
                             text = "SafeID",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textPrimary
                         )
-
-                        // 100% Offline • On-Device Only badge
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = SafeGreen.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, SafeGreen.copy(alpha = 0.4f)),
-                            contentColor = SafeGreen
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Shield,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = "100% Offline • On-Device Only",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.statusSafeDot)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Offline • Processed on-device",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = colors.textSecondary
+                            )
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
+
+                    // Right: Theme Mode Menu Toggle Button
+                    Box {
+                        var showThemeMenu by remember { mutableStateOf(false) }
+
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(colors.bgSubtle)
+                                .border(1.dp, colors.borderHairline, CircleShape)
+                                .clickable { showThemeMenu = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val icon = when (themeMode) {
+                                ThemeMode.LIGHT -> Icons.Default.LightMode
+                                ThemeMode.DARK -> Icons.Default.DarkMode
+                                ThemeMode.SYSTEM -> Icons.Default.BrightnessAuto
+                            }
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = "Appearance",
+                                tint = colors.textPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showThemeMenu,
+                            onDismissRequest = { showThemeMenu = false },
+                            modifier = Modifier
+                                .background(colors.bgElevated)
+                                .border(1.dp, colors.borderHairline, RoundedCornerShape(12.dp))
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "System",
+                                        color = if (themeMode == ThemeMode.SYSTEM) colors.textPrimary else colors.textSecondary,
+                                        fontWeight = if (themeMode == ThemeMode.SYSTEM) FontWeight.SemiBold else FontWeight.Normal
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.BrightnessAuto,
+                                        contentDescription = null,
+                                        tint = if (themeMode == ThemeMode.SYSTEM) colors.textPrimary else colors.textSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    onThemeModeChanged(ThemeMode.SYSTEM)
+                                    showThemeMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "Light",
+                                        color = if (themeMode == ThemeMode.LIGHT) colors.textPrimary else colors.textSecondary,
+                                        fontWeight = if (themeMode == ThemeMode.LIGHT) FontWeight.SemiBold else FontWeight.Normal
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.LightMode,
+                                        contentDescription = null,
+                                        tint = if (themeMode == ThemeMode.LIGHT) colors.textPrimary else colors.textSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    onThemeModeChanged(ThemeMode.LIGHT)
+                                    showThemeMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "Dark",
+                                        color = if (themeMode == ThemeMode.DARK) colors.textPrimary else colors.textSecondary,
+                                        fontWeight = if (themeMode == ThemeMode.DARK) FontWeight.SemiBold else FontWeight.Normal
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.DarkMode,
+                                        contentDescription = null,
+                                        tint = if (themeMode == ThemeMode.DARK) colors.textPrimary else colors.textSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    onThemeModeChanged(ThemeMode.DARK)
+                                    showThemeMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
         },
         bottomBar = {
-            AdBannerComposable()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+            ) {
+                AdBannerComposable()
+            }
         }
     ) { innerPadding ->
         Column(
@@ -250,52 +349,24 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Quick Tip Strip
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = null,
-                        tint = Teal500,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Tip: Tap Share on any photo in your Gallery and pick SafeID directly.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Primary Action Card 1: Single Document / Photo
+            // Action Card 1: Single Document
             ActionCard(
-                title = "Single Document / Photo",
-                subtitle = "One-sided ID card, passport page, certificate, utility bill, or receipt.",
+                title = "Single Document",
+                description = "ID card, passport page, bill, or receipt.",
                 icon = Icons.Default.Description,
-                badgeText = "Fast 1-Step",
                 onClick = {
                     sheetMode = SheetMode.SINGLE_PICKER
                 }
             )
 
-            // Primary Action Card 2: Front + Back ID Card (A4 Layout)
+            // Action Card 2: Front & Back ID Card (A4 Layout)
             ActionCard(
-                title = "Front + Back ID Card (A4 Layout)",
-                subtitle = "Guided 2-step capture (Front → Back) aligned onto a single printable A4 page at 300 DPI equivalent.",
+                title = "Front & Back ID Card",
+                description = "Places both sides onto one printable A4 page.",
                 icon = Icons.Default.CreditCard,
-                badgeText = "2-Sided Guided",
                 onClick = {
                     frontUri = null
                     backUri = null
@@ -303,17 +374,36 @@ fun HomeScreen(
                     sheetMode = SheetMode.FRONT_BACK_GUIDED
                 }
             )
+
+            // Quiet, Unboxed Footer Hint
+            Text(
+                text = "Tip: You can also share any photo directly from your Gallery to SafeID.",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal,
+                color = colors.textTertiary,
+                lineHeight = 18.sp,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+            )
         }
     }
 
-    // Modal Bottom Sheet for Image Sources
+    // Modal Bottom Sheet for Document Source Selection
     if (sheetMode != SheetMode.NONE) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
         ModalBottomSheet(
             onDismissRequest = { sheetMode = SheetMode.NONE },
             sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = colors.bgElevated,
+            dragHandle = {
+                Box(
+                    modifier = Modifier
+                        .padding(vertical = 12.dp)
+                        .size(width = 36.dp, height = 4.dp)
+                        .clip(CircleShape)
+                        .background(colors.borderHairline)
+                )
+            },
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
         ) {
             when (sheetMode) {
@@ -348,94 +438,78 @@ fun HomeScreen(
     }
 }
 
+/**
+ * Minimalist Whole-Card Interactive Action Card with 0.dp elevation and 1.dp hairline border.
+ */
 @Composable
 private fun ActionCard(
     title: String,
-    subtitle: String,
+    description: String,
     icon: ImageVector,
-    badgeText: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = Modifier
+    val colors = SafeIdTheme.colors
+
+    Surface(
+        modifier = modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        color = colors.bgElevated,
+        border = BorderStroke(1.dp, colors.borderHairline),
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Top row: 40.dp rounded square icon container + subtle chevron on the far right
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(colors.bgSubtle),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Teal500.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = Teal500,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = colors.textPrimary,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant
-                ) {
-                    Text(
-                        text = badgeText,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = colors.textTertiary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Button(
-                onClick = onClick,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Teal600
-                ),
-                shape = RoundedCornerShape(10.dp)
-            ) {
+            // Title & Description
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "Select / Capture",
-                    fontWeight = FontWeight.SemiBold
+                    text = title,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                    maxLines = 1
+                )
+                Text(
+                    text = description,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = colors.textSecondary,
+                    lineHeight = 20.sp
                 )
             }
         }
@@ -447,59 +521,45 @@ private fun SinglePickerSheetContent(
     onCameraClick: () -> Unit,
     onGalleryClick: () -> Unit
 ) {
+    val colors = SafeIdTheme.colors
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Text(
-            text = "Select Document Source",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = "Camera photos never leave your device. All GPS and device metadata are stripped locally.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            OutlinedButton(
-                onClick = onCameraClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Teal500)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Camera")
-                }
-            }
-
-            Button(
-                onClick = onGalleryClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Teal600)
-            ) {
-                Row(
-                    modifier = Modifier.padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.PhotoLibrary, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Gallery")
-                }
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "Select Document Source",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.textPrimary
+            )
+            Text(
+                text = "Camera photos never leave your device. All metadata is stripped locally.",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal,
+                color = colors.textSecondary
+            )
         }
-        Spacer(modifier = Modifier.height(16.dp))
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SourceOptionRow(
+                title = "Take Photo with Camera",
+                subtitle = "Capture a clean document photo",
+                icon = Icons.Default.CameraAlt,
+                onClick = onCameraClick
+            )
+
+            SourceOptionRow(
+                title = "Choose from Gallery",
+                subtitle = "Pick an image from your device library",
+                icon = Icons.Default.PhotoLibrary,
+                onClick = onGalleryClick
+            )
+        }
     }
 }
 
@@ -514,32 +574,43 @@ private fun FrontBackGuidedSheetContent(
     onGalleryClick: () -> Unit,
     onContinue: () -> Unit
 ) {
+    val colors = SafeIdTheme.colors
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Text(
-            text = "Front + Back ID Card (A4 Layout)",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "Front & Back ID Card",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.textPrimary
+            )
+            Text(
+                text = "2-step guided capture aligned onto a single printable A4 page.",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal,
+                color = colors.textSecondary
+            )
+        }
 
-        // Status Tabs for Front / Back
+        // Side selector status pills
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SideStatusBadge(
+            SidePill(
                 label = "1. Front Side",
                 isReady = frontUri != null,
                 isActive = activeSide == TargetSide.FRONT,
                 modifier = Modifier.weight(1f),
                 onClick = onSelectFront
             )
-
-            SideStatusBadge(
+            SidePill(
                 label = "2. Back Side",
                 isReady = backUri != null,
                 isActive = activeSide == TargetSide.BACK,
@@ -548,89 +619,156 @@ private fun FrontBackGuidedSheetContent(
             )
         }
 
-        HorizontalDivider()
-
         val promptText = if (activeSide == TargetSide.FRONT) {
-            "Capture or select the FRONT of your ID card:"
+            "Capture or select FRONT side:"
         } else {
-            "Capture or select the BACK of your ID card:"
+            "Capture or select BACK side:"
         }
 
         Text(
             text = promptText,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = colors.textPrimary
         )
 
-        // Camera and Gallery buttons
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            OutlinedButton(
-                onClick = onCameraClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Teal500)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Camera")
-                }
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SourceOptionRow(
+                title = "Take Photo with Camera",
+                subtitle = "Capture using your camera",
+                icon = Icons.Default.CameraAlt,
+                onClick = onCameraClick
+            )
 
-            Button(
-                onClick = onGalleryClick,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Teal600)
-            ) {
-                Row(
-                    modifier = Modifier.padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.PhotoLibrary, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Gallery")
-                }
-            }
+            SourceOptionRow(
+                title = "Choose from Gallery",
+                subtitle = "Select from photo library",
+                icon = Icons.Default.PhotoLibrary,
+                onClick = onGalleryClick
+            )
         }
 
-        // Continue Button when both sides are ready
         val bothReady = frontUri != null && backUri != null
         if (bothReady) {
             Button(
                 onClick = onContinue,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = SafeGreen)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.accentPrimary,
+                    contentColor = colors.onAccentPrimary
+                ),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
             ) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null)
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = colors.statusSafeDot,
+                    modifier = Modifier.size(18.dp)
+                )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Both Sides Selected • Continue to Crop", fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Both Sides Selected • Continue to Crop",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
 @Composable
-private fun SideStatusBadge(
+private fun SourceOptionRow(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    val colors = SafeIdTheme.colors
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = colors.bgSubtle,
+        border = BorderStroke(1.dp, colors.borderHairline),
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(colors.bgElevated)
+                    .border(1.dp, colors.borderHairline, RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = colors.textPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = colors.textSecondary
+                )
+            }
+
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = colors.textTertiary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SidePill(
     label: String,
     isReady: Boolean,
     isActive: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val colors = SafeIdTheme.colors
+    val borderColor = if (isActive) colors.accentPrimary else colors.borderHairline
+    val bgColor = if (isActive) colors.bgElevated else colors.bgSubtle
+
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
-        color = if (isActive) Teal500.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
-        border = if (isActive) BorderStroke(1.5.dp, Teal500) else null
+        color = bgColor,
+        border = BorderStroke(if (isActive) 1.5.dp else 1.dp, borderColor),
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -640,14 +778,14 @@ private fun SideStatusBadge(
             Text(
                 text = label,
                 fontSize = 13.sp,
-                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-                color = if (isActive) Teal500 else MaterialTheme.colorScheme.onSurfaceVariant
+                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (isActive) colors.textPrimary else colors.textSecondary
             )
             if (isReady) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Selected",
-                    tint = SafeGreen,
+                    tint = colors.statusSafeDot,
                     modifier = Modifier.size(16.dp)
                 )
             }
