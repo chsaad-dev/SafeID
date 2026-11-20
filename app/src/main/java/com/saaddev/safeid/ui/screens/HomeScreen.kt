@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,6 +43,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -91,7 +94,8 @@ private enum class SheetMode {
     NONE,
     SINGLE_PICKER,
     FRONT_BACK_GUIDED,
-    MULTI_PAGE_PICKER
+    MULTI_PAGE_PICKER,
+    PASSPORT_PICKER
 }
 
 private enum class TargetSide {
@@ -104,7 +108,9 @@ private enum class TargetSide {
 fun HomeScreen(
     onSingleDocumentSelected: (Uri) -> Unit,
     onFrontBackDocumentsSelected: (frontUri: Uri, backUri: Uri) -> Unit,
-    onMultiPageBundleSelected: (List<Uri>) -> Unit = {}
+    onMultiPageBundleSelected: (List<Uri>) -> Unit = {},
+    onPassportPhotoSelected: (Uri) -> Unit = {},
+    onQuickPresetSelected: (Uri, String) -> Unit = { uri, _ -> onSingleDocumentSelected(uri) }
 ) {
     val context = LocalContext.current
     val colors = SafeIdTheme.colors
@@ -113,6 +119,7 @@ fun HomeScreen(
 
     var sheetMode by remember { mutableStateOf(SheetMode.NONE) }
     var activeTargetSide by remember { mutableStateOf(TargetSide.FRONT) }
+    var pendingQuickPreset by remember { mutableStateOf<String?>(null) }
 
     var frontUri by remember { mutableStateOf<Uri?>(null) }
     var backUri by remember { mutableStateOf<Uri?>(null) }
@@ -162,7 +169,17 @@ fun HomeScreen(
             when (sheetMode) {
                 SheetMode.SINGLE_PICKER -> {
                     sheetMode = SheetMode.NONE
-                    onSingleDocumentSelected(capturedUri)
+                    val preset = pendingQuickPreset
+                    pendingQuickPreset = null
+                    if (preset != null) {
+                        onQuickPresetSelected(capturedUri, preset)
+                    } else {
+                        onSingleDocumentSelected(capturedUri)
+                    }
+                }
+                SheetMode.PASSPORT_PICKER -> {
+                    sheetMode = SheetMode.NONE
+                    onPassportPhotoSelected(capturedUri)
                 }
                 SheetMode.MULTI_PAGE_PICKER -> {
                     sheetMode = SheetMode.NONE
@@ -221,7 +238,18 @@ fun HomeScreen(
                 SheetMode.SINGLE_PICKER -> {
                     sheetMode = SheetMode.NONE
                     val safeUri = copyUriToTemp(uri, "single")
-                    onSingleDocumentSelected(safeUri)
+                    val preset = pendingQuickPreset
+                    pendingQuickPreset = null
+                    if (preset != null) {
+                        onQuickPresetSelected(safeUri, preset)
+                    } else {
+                        onSingleDocumentSelected(safeUri)
+                    }
+                }
+                SheetMode.PASSPORT_PICKER -> {
+                    sheetMode = SheetMode.NONE
+                    val safeUri = copyUriToTemp(uri, "passport")
+                    onPassportPhotoSelected(safeUri)
                 }
                 SheetMode.FRONT_BACK_GUIDED -> {
                     val safeUri = copyUriToTemp(uri, if (activeTargetSide == TargetSide.FRONT) "front" else "back")
@@ -427,6 +455,7 @@ fun HomeScreen(
                 description = "ID card, passport page, bill, or receipt.",
                 icon = Icons.Default.Description,
                 onClick = {
+                    pendingQuickPreset = null
                     sheetMode = SheetMode.SINGLE_PICKER
                 }
             )
@@ -453,6 +482,55 @@ fun HomeScreen(
                     sheetMode = SheetMode.MULTI_PAGE_PICKER
                 }
             )
+
+            // Action Card 4: Passport & ID Photo Print Grid
+            ActionCard(
+                title = "Passport Photo Print Grid",
+                description = "Tile 4, 6, or 8 passport photos onto a printable 4x6 or A4 sheet.",
+                icon = Icons.Default.GridView,
+                onClick = {
+                    sheetMode = SheetMode.PASSPORT_PICKER
+                }
+            )
+
+            // Quick Start Watermark Section
+            Column(
+                modifier = Modifier.padding(top = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "QUICK PURPOSE PRESET",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.textTertiary,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val presets = listOf("Bank KYC", "SIM Card", "Job Portal", "Visa / Travel")
+                    items(presets) { preset ->
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = colors.bgElevated,
+                            border = BorderStroke(1.dp, colors.borderHairline),
+                            modifier = Modifier.clickable {
+                                pendingQuickPreset = preset
+                                sheetMode = SheetMode.SINGLE_PICKER
+                            }
+                        ) {
+                            Text(
+                                text = preset,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = colors.textPrimary,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
+                            )
+                        }
+                    }
+                }
+            }
 
             // Quiet, Unboxed Footer Hint
             Text(
@@ -500,6 +578,12 @@ fun HomeScreen(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                             )
                         }
+                    )
+                }
+                SheetMode.PASSPORT_PICKER -> {
+                    PassportPhotoPickerSheetContent(
+                        onCameraClick = { launchCamera() },
+                        onGalleryClick = { launchGallery() }
                     )
                 }
                 SheetMode.FRONT_BACK_GUIDED -> {
@@ -694,6 +778,54 @@ private fun MultiPagePickerSheetContent(
             SourceOptionRow(
                 title = "Capture Pages with Camera",
                 subtitle = "Take photos and append pages one by one",
+                icon = Icons.Default.CameraAlt,
+                onClick = onCameraClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun PassportPhotoPickerSheetContent(
+    onCameraClick: () -> Unit,
+    onGalleryClick: () -> Unit
+) {
+    val colors = SafeIdTheme.colors
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "Passport Photo Print Grid",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.textPrimary
+            )
+            Text(
+                text = "Select or capture a portrait photo to tile on a printable 4x6 or A4 sheet.",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal,
+                color = colors.textSecondary
+            )
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SourceOptionRow(
+                title = "Choose from Gallery",
+                subtitle = "Pick a portrait photo from your library",
+                icon = Icons.Default.PhotoLibrary,
+                onClick = onGalleryClick
+            )
+
+            SourceOptionRow(
+                title = "Take Photo with Camera",
+                subtitle = "Capture a clean portrait photo",
                 icon = Icons.Default.CameraAlt,
                 onClick = onCameraClick
             )

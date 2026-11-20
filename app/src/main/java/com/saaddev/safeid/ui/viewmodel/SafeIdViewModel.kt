@@ -16,12 +16,32 @@ class SafeIdViewModel : ViewModel() {
     private val _sessionState = MutableStateFlow(SafeIdSessionState())
     val sessionState: StateFlow<SafeIdSessionState> = _sessionState.asStateFlow()
 
-    fun setSingleDocument(uri: Uri) {
+    fun setSingleDocument(uri: Uri, quickPreset: String? = null) {
         _sessionState.update { current ->
             current.copy(
                 primaryImageUri = uri,
                 secondaryImageUri = null,
                 isFrontBackMode = false,
+                bundleImageUris = emptyList(),
+                passportPhotoUri = null,
+                quickPreset = quickPreset,
+                primaryPrivacyReport = null,
+                secondaryPrivacyReport = null,
+                processedBitmap = null,
+                secondaryProcessedBitmap = null
+            )
+        }
+    }
+
+    fun setPassportPhoto(uri: Uri) {
+        _sessionState.update { current ->
+            current.copy(
+                passportPhotoUri = uri,
+                primaryImageUri = uri,
+                secondaryImageUri = null,
+                isFrontBackMode = false,
+                bundleImageUris = emptyList(),
+                quickPreset = null,
                 primaryPrivacyReport = null,
                 secondaryPrivacyReport = null,
                 processedBitmap = null,

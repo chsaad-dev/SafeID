@@ -27,6 +27,23 @@ enum class WatermarkDensity(val label: String, val spacingMultiplier: Float) {
     WIDE("Wide", 1.4f)
 }
 
+enum class PassportStandard(val label: String, val widthMm: Float, val heightMm: Float) {
+    STANDARD_35_45("35×45 mm", 35f, 45f),
+    US_2_2("2×2 inch", 50.8f, 50.8f),
+    STANDARD_30_40("3×4 cm", 30f, 40f)
+}
+
+enum class PaperSheetSize(val label: String, val widthPx: Int, val heightPx: Int) {
+    PHOTO_4X6("4×6 Photo Paper", 1800, 1200),
+    A4("A4 Full Sheet", 2480, 3508)
+}
+
+enum class GridCopies(val label: String, val count: Int) {
+    FOUR("4 Photos", 4),
+    SIX("6 Photos", 6),
+    EIGHT("8 Photos", 8)
+}
+
 data class ExportConfig(
     val format: ExportFormat = ExportFormat.JPG,
     val targetSize: TargetSize = TargetSize.ORIGINAL,

@@ -9,6 +9,7 @@ import com.saaddev.safeid.ui.screens.CropAuditScreen
 import com.saaddev.safeid.ui.screens.ExportShareScreen
 import com.saaddev.safeid.ui.screens.HomeScreen
 import com.saaddev.safeid.ui.screens.MultiPageStudioScreen
+import com.saaddev.safeid.ui.screens.PassportGridScreen
 import com.saaddev.safeid.ui.screens.WatermarkStudioScreen
 import com.saaddev.safeid.ui.viewmodel.SafeIdViewModel
 
@@ -36,7 +37,23 @@ fun SafeIdNavGraph(
                 onMultiPageBundleSelected = { uris ->
                     viewModel.setMultiPageBundle(uris)
                     navController.navigate(Screen.MultiPageStudio.route)
+                },
+                onPassportPhotoSelected = { uri ->
+                    viewModel.setPassportPhoto(uri)
+                    navController.navigate(Screen.PassportGrid.route)
+                },
+                onQuickPresetSelected = { uri, preset ->
+                    viewModel.setSingleDocument(uri, preset)
+                    navController.navigate(Screen.CropAudit.route)
                 }
+            )
+        }
+
+        composable(Screen.PassportGrid.route) {
+            PassportGridScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToExportShare = { navController.navigate(Screen.ExportShare.route) }
             )
         }
 

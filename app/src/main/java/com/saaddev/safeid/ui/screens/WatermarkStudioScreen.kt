@@ -123,8 +123,18 @@ fun WatermarkStudioScreen(
     var interactionMode by remember { mutableStateOf(StudioInteractionMode.WATERMARK) }
 
     // Preset & Text state
-    var selectedPreset by remember { mutableStateOf(WatermarkPreset.KYC) }
-    var customWatermarkText by remember { mutableStateOf(WatermarkPreset.KYC.textTemplate) }
+    val initialPreset = remember(sessionState.quickPreset) {
+        when (sessionState.quickPreset) {
+            "Bank KYC" -> WatermarkPreset.KYC
+            "SIM Card" -> WatermarkPreset.SIM
+            "Job Portal" -> WatermarkPreset.JOB
+            "Visa / Travel" -> WatermarkPreset.VISA
+            else -> WatermarkPreset.KYC
+        }
+    }
+
+    var selectedPreset by remember(initialPreset) { mutableStateOf(initialPreset) }
+    var customWatermarkText by remember(initialPreset) { mutableStateOf(initialPreset.textTemplate) }
     var includeDate by remember { mutableStateOf(true) }
 
     // Styling state
