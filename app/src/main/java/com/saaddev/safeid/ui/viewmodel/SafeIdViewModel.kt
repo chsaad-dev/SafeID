@@ -54,6 +54,22 @@ class SafeIdViewModel : ViewModel() {
                 primaryImageUri = frontUri,
                 secondaryImageUri = backUri,
                 isFrontBackMode = true,
+                bundleImageUris = emptyList(),
+                primaryPrivacyReport = null,
+                secondaryPrivacyReport = null,
+                processedBitmap = null,
+                secondaryProcessedBitmap = null
+            )
+        }
+    }
+
+    fun setMultiPageBundle(uris: List<Uri>) {
+        _sessionState.update { current ->
+            current.copy(
+                bundleImageUris = uris,
+                primaryImageUri = uris.firstOrNull(),
+                secondaryImageUri = null,
+                isFrontBackMode = false,
                 primaryPrivacyReport = null,
                 secondaryPrivacyReport = null,
                 processedBitmap = null,

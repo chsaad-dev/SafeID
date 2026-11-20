@@ -3,6 +3,7 @@ package com.saaddev.safeid.engine
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -14,6 +15,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -22,6 +25,14 @@ data class CompressionResult(
     val data: ByteArray,
     val sizeBytes: Long,
     val targetKbLimit: Int?
+)
+
+data class MultiPagePdfResult(
+    val pdfFile: File,
+    val totalPages: Int,
+    val totalStrippedTags: Int,
+    val fileSizeBytes: Long,
+    val firstPagePreview: Bitmap?
 )
 
 object ExportAndCompressionEngine {
@@ -264,6 +275,111 @@ object ExportAndCompressionEngine {
             MediaScannerConnection.scanFile(context, arrayOf(destFile.absolutePath), arrayOf(mimeType), null)
             Uri.fromFile(destFile)
         }
+    }
+
+    /**
+     * Generates a multi-page A4 PDF bundle combining 2 to 10 document pages.
+     * Strips all EXIF/GPS metadata, applies document enhancement filters and watermarks consistently,
+     * centers each page on standard A4 (1240 × 1754 px), and enforces target file size caps.
+     */
+    suspend fun generateMultiPagePdf(
+        context: Context,
+        pageUris: List<Uri>,
+        filter: ScanFilter,
+        watermarkText: String,
+        watermarkColorInt: Int,
+        watermarkOpacity: Float,
+        targetSizeKb: Int?
+    ): MultiPagePdfResult = withContext(Dispatchers.Default) {
+        var totalStripped = 0
+        val processedPages = mutableListOf<Bitmap>()
+        var firstPreview: Bitmap? = null
+
+        // Step 1: Audit, strip EXIF metadata, filter, and watermark each page
+        for (uri in pageUris) {
+            val (report, decoded) = ExifPrivacyEngine.loadAndAudit(context, uri)
+            if (report != null) {
+                totalStripped += report.strippedTagCount
+            }
+            if (decoded != null) {
+                val filtered = PerspectiveAndFilterEngine.applyFilter(decoded, filter)
+                val watermarked = if (watermarkText.isNotBlank()) {
+                    WatermarkAndBlurEngine.applyWatermarkAndBlur(
+                        source = filtered,
+                        watermarkText = watermarkText,
+                        watermarkColorInt = watermarkColorInt,
+                        watermarkOpacity = watermarkOpacity,
+                        autoAppendDate = false,
+                        spacingMultiplier = 1.0f,
+                        blurStrokes = emptyList()
+                    )
+                } else {
+                    filtered
+                }
+                processedPages.add(watermarked)
+                if (firstPreview == null) {
+                    firstPreview = watermarked
+                }
+            }
+        }
+
+        // Step 2: Enforce target size cap per page if requested
+        val finalPages = if (targetSizeKb != null && processedPages.isNotEmpty()) {
+            val perPageTargetKb = ((targetSizeKb * 0.85f) / processedPages.size).toInt().coerceAtLeast(35)
+            processedPages.map { bmp ->
+                val compressed = compressBitmapToTargetKb(bmp, perPageTargetKb)
+                BitmapFactory.decodeByteArray(compressed.data, 0, compressed.data.size) ?: bmp
+            }
+        } else {
+            processedPages
+        }
+
+        // Step 3: Render each page centered on A4 PdfDocument
+        val pdfDocument = PdfDocument()
+        val marginPx = 40f
+        val maxAvailableW = A4_WIDTH_PX - (marginPx * 2f)
+        val maxAvailableH = A4_HEIGHT_PX - (marginPx * 2f)
+        val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        val borderPaint = Paint().apply {
+            color = 0xFFCBD5E1.toInt()
+            style = Paint.Style.STROKE
+            strokeWidth = 1f
+        }
+
+        finalPages.forEachIndexed { index, pageBmp ->
+            val pageInfo = PdfDocument.PageInfo.Builder(A4_WIDTH_PX, A4_HEIGHT_PX, index + 1).create()
+            val page = pdfDocument.startPage(pageInfo)
+            val canvas = page.canvas
+
+            canvas.drawColor(Color.WHITE)
+
+            val scale = minOf(
+                maxAvailableW / pageBmp.width.toFloat(),
+                maxAvailableH / pageBmp.height.toFloat()
+            )
+            val scaledW = pageBmp.width * scale
+            val scaledH = pageBmp.height * scale
+            val left = (A4_WIDTH_PX - scaledW) / 2f
+            val top = (A4_HEIGHT_PX - scaledH) / 2f
+
+            val dstRect = RectF(left, top, left + scaledW, top + scaledH)
+            canvas.drawBitmap(pageBmp, null, dstRect, bitmapPaint)
+            canvas.drawRect(dstRect, borderPaint)
+
+            pdfDocument.finishPage(page)
+        }
+
+        val timestamp = System.currentTimeMillis()
+        val fileName = "SafeID_Bundle_$timestamp.pdf"
+        val savedFile = savePdfToExportCache(context, pdfDocument, fileName)
+
+        MultiPagePdfResult(
+            pdfFile = savedFile,
+            totalPages = finalPages.size,
+            totalStrippedTags = totalStripped,
+            fileSizeBytes = savedFile.length(),
+            firstPagePreview = firstPreview
+        )
     }
 }
 

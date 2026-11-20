@@ -14,6 +14,13 @@ enum class TargetSize(val label: String, val maxKb: Int?) {
     KB_50("< 50 KB", 50)
 }
 
+enum class BundleTargetSize(val label: String, val maxKb: Int?) {
+    ORIGINAL("Original", null),
+    MB_2("< 2 MB", 2000),
+    MB_1("< 1 MB", 1000),
+    KB_500("< 500 KB", 500)
+}
+
 enum class WatermarkDensity(val label: String, val spacingMultiplier: Float) {
     COMPACT("Compact", 0.8f),
     NORMAL("Normal", 1.0f),

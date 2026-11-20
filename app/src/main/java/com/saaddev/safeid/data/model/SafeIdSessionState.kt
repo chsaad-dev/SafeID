@@ -8,6 +8,7 @@ data class SafeIdSessionState(
     val primaryImageUri: Uri? = null,
     val secondaryImageUri: Uri? = null,
     val isFrontBackMode: Boolean = false,
+    val bundleImageUris: List<Uri> = emptyList(),
     val primaryPrivacyReport: PrivacyAuditReport? = null,
     val secondaryPrivacyReport: PrivacyAuditReport? = null,
     val processedBitmap: Bitmap? = null,

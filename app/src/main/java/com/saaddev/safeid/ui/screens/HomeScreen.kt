@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.Button
@@ -89,7 +90,8 @@ import java.io.FileOutputStream
 private enum class SheetMode {
     NONE,
     SINGLE_PICKER,
-    FRONT_BACK_GUIDED
+    FRONT_BACK_GUIDED,
+    MULTI_PAGE_PICKER
 }
 
 private enum class TargetSide {
@@ -101,7 +103,8 @@ private enum class TargetSide {
 @Composable
 fun HomeScreen(
     onSingleDocumentSelected: (Uri) -> Unit,
-    onFrontBackDocumentsSelected: (frontUri: Uri, backUri: Uri) -> Unit
+    onFrontBackDocumentsSelected: (frontUri: Uri, backUri: Uri) -> Unit,
+    onMultiPageBundleSelected: (List<Uri>) -> Unit = {}
 ) {
     val context = LocalContext.current
     val colors = SafeIdTheme.colors
@@ -160,6 +163,10 @@ fun HomeScreen(
                 SheetMode.SINGLE_PICKER -> {
                     sheetMode = SheetMode.NONE
                     onSingleDocumentSelected(capturedUri)
+                }
+                SheetMode.MULTI_PAGE_PICKER -> {
+                    sheetMode = SheetMode.NONE
+                    onMultiPageBundleSelected(listOf(capturedUri))
                 }
                 SheetMode.FRONT_BACK_GUIDED -> {
                     if (activeTargetSide == TargetSide.FRONT) {
@@ -227,6 +234,11 @@ fun HomeScreen(
                         backUri = safeUri
                     }
                 }
+                SheetMode.MULTI_PAGE_PICKER -> {
+                    sheetMode = SheetMode.NONE
+                    val safeUri = copyUriToTemp(uri, "bundle_page_0")
+                    onMultiPageBundleSelected(listOf(safeUri))
+                }
                 SheetMode.NONE -> {}
             }
         }
@@ -236,6 +248,19 @@ fun HomeScreen(
         pickMediaLauncher.launch(
             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
         )
+    }
+
+    // Multiple Visual Media Picker for Multi-Page Bundle (up to 10 items)
+    val pickMultipleMediaLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            sheetMode = SheetMode.NONE
+            val safeUris = uris.mapIndexed { index, uri ->
+                copyUriToTemp(uri, "bundle_page_$index")
+            }
+            onMultiPageBundleSelected(safeUris)
+        }
     }
 
     Scaffold(
@@ -419,6 +444,16 @@ fun HomeScreen(
                 }
             )
 
+            // Action Card 3: Multi-Page PDF Bundle
+            ActionCard(
+                title = "Multi-Page PDF Bundle",
+                description = "Combine 2 to 10 documents into one watermarked PDF.",
+                icon = Icons.Default.Layers,
+                onClick = {
+                    sheetMode = SheetMode.MULTI_PAGE_PICKER
+                }
+            )
+
             // Quiet, Unboxed Footer Hint
             Text(
                 text = "Tip: You can also share any photo directly from your Gallery to SafeID.",
@@ -455,6 +490,16 @@ fun HomeScreen(
                     SinglePickerSheetContent(
                         onCameraClick = { launchCamera() },
                         onGalleryClick = { launchGallery() }
+                    )
+                }
+                SheetMode.MULTI_PAGE_PICKER -> {
+                    MultiPagePickerSheetContent(
+                        onCameraClick = { launchCamera() },
+                        onGalleryClick = {
+                            pickMultipleMediaLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
                     )
                 }
                 SheetMode.FRONT_BACK_GUIDED -> {
@@ -603,6 +648,54 @@ private fun SinglePickerSheetContent(
                 subtitle = "Pick an image from your device library",
                 icon = Icons.Default.PhotoLibrary,
                 onClick = onGalleryClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun MultiPagePickerSheetContent(
+    onCameraClick: () -> Unit,
+    onGalleryClick: () -> Unit
+) {
+    val colors = SafeIdTheme.colors
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "Multi-Page PDF Bundle",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.textPrimary
+            )
+            Text(
+                text = "Combine 2 to 10 document pages into a single watermarked, size-capped PDF.",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal,
+                color = colors.textSecondary
+            )
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SourceOptionRow(
+                title = "Choose Multiple from Gallery",
+                subtitle = "Select up to 10 photos or documents",
+                icon = Icons.Default.PhotoLibrary,
+                onClick = onGalleryClick
+            )
+
+            SourceOptionRow(
+                title = "Capture Pages with Camera",
+                subtitle = "Take photos and append pages one by one",
+                icon = Icons.Default.CameraAlt,
+                onClick = onCameraClick
             )
         }
     }

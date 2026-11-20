@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import com.saaddev.safeid.ui.screens.CropAuditScreen
 import com.saaddev.safeid.ui.screens.ExportShareScreen
 import com.saaddev.safeid.ui.screens.HomeScreen
+import com.saaddev.safeid.ui.screens.MultiPageStudioScreen
 import com.saaddev.safeid.ui.screens.WatermarkStudioScreen
 import com.saaddev.safeid.ui.viewmodel.SafeIdViewModel
 
@@ -31,7 +32,19 @@ fun SafeIdNavGraph(
                 onFrontBackDocumentsSelected = { frontUri, backUri ->
                     viewModel.setFrontBackDocuments(frontUri, backUri)
                     navController.navigate(Screen.CropAudit.route)
+                },
+                onMultiPageBundleSelected = { uris ->
+                    viewModel.setMultiPageBundle(uris)
+                    navController.navigate(Screen.MultiPageStudio.route)
                 }
+            )
+        }
+
+        composable(Screen.MultiPageStudio.route) {
+            MultiPageStudioScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToExportShare = { navController.navigate(Screen.ExportShare.route) }
             )
         }
 
