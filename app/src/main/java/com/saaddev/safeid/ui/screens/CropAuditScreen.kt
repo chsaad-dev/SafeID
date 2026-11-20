@@ -1,58 +1,43 @@
 package com.saaddev.safeid.ui.screens
 
 import android.graphics.Bitmap
-import android.net.Uri
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.RotateLeft
 import androidx.compose.material.icons.automirrored.filled.RotateRight
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CropRotate
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -69,8 +54,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
@@ -81,10 +66,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
 import androidx.compose.ui.unit.sp
 import com.saaddev.safeid.engine.ExifPrivacyEngine
 import com.saaddev.safeid.engine.NormalizedCornerPoints
@@ -92,17 +77,13 @@ import com.saaddev.safeid.engine.NormalizedPoint
 import com.saaddev.safeid.engine.PerspectiveAndFilterEngine
 import com.saaddev.safeid.engine.PrivacyAuditReport
 import com.saaddev.safeid.engine.ScanFilter
-import com.saaddev.safeid.ui.theme.AlertRed
-import com.saaddev.safeid.ui.theme.SafeGreen
-import com.saaddev.safeid.ui.theme.Slate700
-import com.saaddev.safeid.ui.theme.Teal500
-import com.saaddev.safeid.ui.theme.Teal600
-import com.saaddev.safeid.ui.theme.Teal700
+import com.saaddev.safeid.ui.theme.SafeIdTheme
 import com.saaddev.safeid.ui.viewmodel.SafeIdViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.hypot
+import kotlin.math.roundToInt
 
 private enum class ActiveSide {
     FRONT,
@@ -116,7 +97,7 @@ private enum class CornerId {
     BOTTOM_LEFT
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CropAuditScreen(
     viewModel: SafeIdViewModel,
@@ -126,9 +107,11 @@ fun CropAuditScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val sessionState by viewModel.sessionState.collectAsState()
+    val colors = SafeIdTheme.colors
 
     var activeSide by remember { mutableStateOf(ActiveSide.FRONT) }
     var isProcessing by remember { mutableStateOf(false) }
+    var showAuditDialog by remember { mutableStateOf(false) }
 
     // Front Side State
     var frontBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -171,7 +154,6 @@ fun CropAuditScreen(
     }
 
     // Determine current active values based on selected tab
-    val currentUri = if (activeSide == ActiveSide.FRONT) sessionState.primaryImageUri else sessionState.secondaryImageUri
     val currentRawBitmap = if (activeSide == ActiveSide.FRONT) frontBitmap else backBitmap
     val currentReport = if (activeSide == ActiveSide.FRONT) frontReport else backReport
     val currentCorners = if (activeSide == ActiveSide.FRONT) frontCorners else backCorners
@@ -203,8 +185,14 @@ fun CropAuditScreen(
         }
     }
 
-    fun resetCurrentCorners() {
-        updateCurrentCorners(NormalizedCornerPoints())
+    fun resetCurrent() {
+        if (activeSide == ActiveSide.FRONT) {
+            frontCorners = NormalizedCornerPoints()
+            frontRotation = 0f
+        } else {
+            backCorners = NormalizedCornerPoints()
+            backRotation = 0f
+        }
     }
 
     // Processing Next: apply perspective warp + filter
@@ -248,67 +236,231 @@ fun CropAuditScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = if (sessionState.isFrontBackMode) "Crop & Audit (Front + Back)" else "Crop & Privacy Audit",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        }
-    ) { innerPadding ->
-        Column(
+    // Single-Viewport Non-Scrolling Root
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.bgPrimary)
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // 1. Minimal Single-Line Top Bar
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .fillMaxWidth()
+                .height(48.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Front + Back Tab Row (when in Front+Back mode)
-            if (sessionState.isFrontBackMode) {
-                PrimaryTabRow(
-                    selectedTabIndex = if (activeSide == ActiveSide.FRONT) 0 else 1,
-                    containerColor = MaterialTheme.colorScheme.surface
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                IconButton(
+                    onClick = onNavigateBack,
+                    modifier = Modifier.size(36.dp)
                 ) {
-                    Tab(
-                        selected = activeSide == ActiveSide.FRONT,
-                        onClick = { activeSide = ActiveSide.FRONT },
-                        text = {
-                            Text(
-                                "1. Front Side",
-                                fontWeight = if (activeSide == ActiveSide.FRONT) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = colors.textPrimary,
+                        modifier = Modifier.size(20.dp)
                     )
-                    Tab(
-                        selected = activeSide == ActiveSide.BACK,
-                        onClick = { activeSide = ActiveSide.BACK },
-                        text = {
+                }
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Crop & Privacy",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            TextButton(
+                onClick = { resetCurrent() },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "Reset",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.textSecondary
+                )
+            }
+        }
+
+        // 2. Front/Back Segmented Switcher (in Front + Back mode)
+        if (sessionState.isFrontBackMode) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = colors.bgSubtle
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Front Tab
+                    val isFront = activeSide == ActiveSide.FRONT
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(8.dp))
+                            .then(
+                                if (isFront) {
+                                    Modifier
+                                        .background(colors.bgElevated)
+                                        .border(1.dp, colors.borderHairline, RoundedCornerShape(8.dp))
+                                } else {
+                                    Modifier.background(Color.Transparent)
+                                }
+                            )
+                            .clickable { activeSide = ActiveSide.FRONT },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.statusSafeDot)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                "2. Back Side",
-                                fontWeight = if (activeSide == ActiveSide.BACK) FontWeight.Bold else FontWeight.Normal
+                                text = "Front Side",
+                                fontSize = 13.sp,
+                                fontWeight = if (isFront) FontWeight.SemiBold else FontWeight.Medium,
+                                color = if (isFront) colors.textPrimary else colors.textSecondary,
+                                maxLines = 1
                             )
                         }
+                    }
+
+                    // Back Tab
+                    val isBack = activeSide == ActiveSide.BACK
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(8.dp))
+                            .then(
+                                if (isBack) {
+                                    Modifier
+                                        .background(colors.bgElevated)
+                                        .border(1.dp, colors.borderHairline, RoundedCornerShape(8.dp))
+                                } else {
+                                    Modifier.background(Color.Transparent)
+                                }
+                            )
+                            .clickable { activeSide = ActiveSide.BACK },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.statusSafeDot)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Back Side",
+                                fontSize = 13.sp,
+                                fontWeight = if (isBack) FontWeight.SemiBold else FontWeight.Medium,
+                                color = if (isBack) colors.textPrimary else colors.textSecondary,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Compact Privacy Audit Strip (No Loud Green Text)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .clickable(enabled = currentReport?.isClean == false) {
+                    showAuditDialog = true
+                },
+            shape = RoundedCornerShape(12.dp),
+            color = colors.bgElevated,
+            border = BorderStroke(1.dp, colors.borderHairline),
+            shadowElevation = 0.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(colors.statusSafeDot)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = when {
+                            currentReport == null -> "Inspecting metadata..."
+                            currentReport.isClean -> "Clean File • No EXIF metadata found"
+                            else -> "EXIF & GPS Stripped • ${currentReport.strippedTagCount} tags removed"
+                        },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                if (currentReport != null && !currentReport.isClean) {
+                    Text(
+                        text = "View",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.textTertiary,
+                        modifier = Modifier.padding(start = 8.dp)
                     )
                 }
             }
+        }
 
-            // 1. Prominent Privacy Audit Card
-            PrivacyAuditCard(report = currentReport)
-
-            // 2. Interactive 4-Corner Cropper Canvas
+        // 4. Crop Canvas Container (Weight 1f, No Black Bars, No Clipped Handles)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(colors.bgSubtle)
+                .border(1.dp, colors.borderHairline, RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center
+        ) {
             if (currentRawBitmap != null) {
                 val displayBitmap = remember(currentRawBitmap, currentRotation) {
                     if (currentRotation != 0f) {
@@ -316,236 +468,229 @@ fun CropAuditScreen(
                     } else currentRawBitmap
                 }
 
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                PerspectiveCropCanvas(
+                    bitmap = displayBitmap,
+                    corners = currentCorners,
+                    onCornersChanged = { updateCurrentCorners(it) },
+                    accentSurgical = colors.accentSurgical,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                // Distinct Monochrome Rotation Buttons in Floating Pill
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 12.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    color = colors.bgElevated.copy(alpha = 0.94f),
+                    border = BorderStroke(1.dp, colors.borderHairline),
+                    shadowElevation = 0.dp
                 ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        IconButton(
+                            onClick = { rotateCurrent(clockwise = false) },
+                            modifier = Modifier.size(36.dp)
                         ) {
-                            Text(
-                                text = "Adjust 4 Corner Handles",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.RotateLeft,
+                                contentDescription = "Rotate 90° Left",
+                                tint = colors.textPrimary,
+                                modifier = Modifier.size(18.dp)
                             )
-
-                            Row {
-                                IconButton(onClick = { rotateCurrent(clockwise = false) }) {
-                                    Icon(Icons.AutoMirrored.Filled.RotateLeft, contentDescription = "Rotate Left", tint = Teal500)
-                                }
-                                IconButton(onClick = { rotateCurrent(clockwise = true) }) {
-                                    Icon(Icons.AutoMirrored.Filled.RotateRight, contentDescription = "Rotate Right", tint = Teal500)
-                                }
-                                IconButton(onClick = { resetCurrentCorners() }) {
-                                    Icon(Icons.Default.Refresh, contentDescription = "Reset Corners", tint = Teal500)
-                                }
-                            }
                         }
-
-                        // Draggable 4-Corner Perspective Canvas
-                        PerspectiveCropCanvas(
-                            bitmap = displayBitmap,
-                            corners = currentCorners,
-                            onCornersChanged = { updateCurrentCorners(it) },
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(320.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color.Black)
+                                .width(1.dp)
+                                .height(16.dp)
+                                .background(colors.borderHairline)
                         )
+                        IconButton(
+                            onClick = { rotateCurrent(clockwise = true) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.RotateRight,
+                                contentDescription = "Rotate 90° Right",
+                                tint = colors.textPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(260.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = Teal500)
-                }
-            }
-
-            // 3. Quick Scan Filter Chips
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Document Enhancement Filter",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ScanFilter.entries.forEach { filter ->
-                            val isSelected = currentFilter == filter
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { updateCurrentFilter(filter) },
-                                label = {
-                                    Text(
-                                        text = when (filter) {
-                                            ScanFilter.ORIGINAL -> "Original"
-                                            ScanFilter.CLEAN_SCAN -> "Clean Scan (B&W)"
-                                            ScanFilter.COLOR_BOOST -> "Color Boost"
-                                        },
-                                        fontSize = 12.sp
-                                    )
-                                },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                                } else null,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Teal500.copy(alpha = 0.2f),
-                                    selectedLabelColor = Teal500,
-                                    selectedLeadingIconColor = Teal500
-                                ),
-                                shape = RoundedCornerShape(10.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Primary Bottom Button
-            Button(
-                onClick = { processAndAdvance() },
-                enabled = !isProcessing && currentRawBitmap != null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Teal600)
-            ) {
-                if (isProcessing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        color = Color.White,
-                        strokeWidth = 2.5.dp
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("Applying Perspective & Filters...")
-                } else {
-                    Text(
-                        text = "Next: Add Watermark & Size",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
-                }
+                CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    color = colors.accentSurgical,
+                    strokeWidth = 2.5.dp
+                )
             }
         }
-    }
-}
 
-/**
- * Prominent Privacy Audit Card displaying stripped tags
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun PrivacyAuditCard(report: PrivacyAuditReport?) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        // 5. Equal-Width 3-Segment Filter Bar (No Text Truncation)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .padding(horizontal = 20.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = colors.bgSubtle
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Shield,
-                    contentDescription = null,
-                    tint = if (report?.isClean == false) AlertRed else SafeGreen,
-                    modifier = Modifier.size(20.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val filterOptions = listOf(
+                    ScanFilter.ORIGINAL to "Original",
+                    ScanFilter.CLEAN_SCAN to "Clean Scan",
+                    ScanFilter.COLOR_BOOST to "Color Boost"
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = when {
-                        report == null -> "Inspecting EXIF & GPS Metadata..."
-                        report.isClean -> "Clean File • No EXIF tags found"
-                        else -> "Stripped ${report.strippedTagCount} hidden tags"
-                    },
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = if (report?.isClean == false) AlertRed else SafeGreen
-                )
-            }
-
-            if (report != null && !report.isClean) {
-                Text(
-                    text = "GPS locations, device identifiers, and timestamps will never leave your phone:",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    report.toSummaryChipList().forEach { chipText ->
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
-                        ) {
-                            Text(
-                                text = chipText,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                filterOptions.forEach { (filter, label) ->
+                    val isSelected = currentFilter == filter
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(8.dp))
+                            .then(
+                                if (isSelected) {
+                                    Modifier
+                                        .background(colors.bgElevated)
+                                        .border(1.dp, colors.borderHairline, RoundedCornerShape(8.dp))
+                                } else {
+                                    Modifier.background(Color.Transparent)
+                                }
                             )
-                        }
+                            .clickable { updateCurrentFilter(filter) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 13.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                            color = if (isSelected) colors.textPrimary else colors.textSecondary,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                 }
-            } else if (report != null && report.isClean) {
+            }
+        }
+
+        // 6. Full-Width 52dp Primary Action Button
+        Button(
+            onClick = { processAndAdvance() },
+            enabled = !isProcessing && currentRawBitmap != null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .padding(horizontal = 20.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = colors.accentPrimary,
+                contentColor = colors.onAccentPrimary,
+                disabledContainerColor = colors.bgSubtle,
+                disabledContentColor = colors.textTertiary
+            ),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
+        ) {
+            if (isProcessing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = colors.onAccentPrimary,
+                    strokeWidth = 2.dp
+                )
+            } else {
                 Text(
-                    text = "No GPS coordinates, device serials, or capture metadata were embedded in this file.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "Continue to Watermark",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(4.dp))
+    }
+
+    // Optional Stripped Tags Details Dialog
+    if (showAuditDialog && currentReport != null && !currentReport.isClean) {
+        AlertDialog(
+            onDismissRequest = { showAuditDialog = false },
+            title = {
+                Text(
+                    text = "Stripped Privacy Tags",
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                    fontSize = 17.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "The following metadata was embedded in your photo and stripped on-device:",
+                        fontSize = 13.sp,
+                        color = colors.textSecondary
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        currentReport.toSummaryChipList().forEach { chip ->
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = colors.bgSubtle,
+                                border = BorderStroke(1.dp, colors.borderHairline)
+                            ) {
+                                Text(
+                                    text = chip,
+                                    fontSize = 12.sp,
+                                    color = colors.textPrimary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAuditDialog = false }) {
+                    Text("Done", fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
+                }
+            },
+            containerColor = colors.bgElevated,
+            shape = RoundedCornerShape(16.dp)
+        )
     }
 }
 
 /**
- * Interactive 4-Corner Draggable Perspective Canvas with Corner Magnifier Loupe
+ * Interactive 4-Corner Draggable Perspective Canvas with Inset Safe-Zone Padding & Corner Loupe
  */
 @Composable
 private fun PerspectiveCropCanvas(
     bitmap: Bitmap,
     corners: NormalizedCornerPoints,
     onCornersChanged: (NormalizedCornerPoints) -> Unit,
+    accentSurgical: Color,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
+    val internalPaddingPx = with(density) { 16.dp.toPx() }
     val touchHitboxPx = with(density) { 44.dp.toPx() }
     val loupeRadiusPx = with(density) { 48.dp.toPx() }
     val loupeOffsetY = with(density) { 76.dp.toPx() }
+
+    val handleRadiusPx = with(density) { 12.dp.toPx() }
+    val handleInnerDotPx = with(density) { 4.5f.dp.toPx() }
+    val handleCenterAccentPx = with(density) { 2.dp.toPx() }
+    val strokeWidthPx = with(density) { 1.5f.dp.toPx() }
 
     val imageBitmap = remember(bitmap) { bitmap.asImageBitmap() }
 
@@ -555,7 +700,7 @@ private fun PerspectiveCropCanvas(
     var activeCorner by remember { mutableStateOf<CornerId?>(null) }
     var currentTouch by remember { mutableStateOf(Offset.Zero) }
 
-    // Canvas layout bounds of the displayed image
+    // Displayed image rectangle computed inside canvas with safe padding
     var imageRect by remember { mutableStateOf(Rect.Zero) }
 
     Box(modifier = modifier) {
@@ -628,14 +773,16 @@ private fun PerspectiveCropCanvas(
             val canvasW = size.width
             val canvasH = size.height
 
-            // 1. Calculate aspect-fit image rectangle
+            // 1. Calculate aspect-fit image rectangle inside internal padding bounds
+            val availW = (canvasW - 2 * internalPaddingPx).coerceAtLeast(1f)
+            val availH = (canvasH - 2 * internalPaddingPx).coerceAtLeast(1f)
             val imgW = bitmap.width.toFloat()
             val imgH = bitmap.height.toFloat()
-            val scale = minOf(canvasW / imgW, canvasH / imgH)
+            val scale = minOf(availW / imgW, availH / imgH)
             val displayW = imgW * scale
             val displayH = imgH * scale
-            val left = (canvasW - displayW) / 2f
-            val top = (canvasH - displayH) / 2f
+            val left = internalPaddingPx + (availW - displayW) / 2f
+            val top = internalPaddingPx + (availH - displayH) / 2f
             val computedRect = Rect(left, top, left + displayW, top + displayH)
             imageRect = computedRect
 
@@ -652,7 +799,7 @@ private fun PerspectiveCropCanvas(
             val br = Offset(computedRect.left + corners.bottomRight.x * computedRect.width, computedRect.top + corners.bottomRight.y * computedRect.height)
             val bl = Offset(computedRect.left + corners.bottomLeft.x * computedRect.width, computedRect.top + corners.bottomLeft.y * computedRect.height)
 
-            // 4. Draw crop polygon
+            // 4. Construct crop quadrilateral
             val quadPath = Path().apply {
                 moveTo(tl.x, tl.y)
                 lineTo(tr.x, tr.y)
@@ -661,36 +808,53 @@ private fun PerspectiveCropCanvas(
                 close()
             }
 
-            // Interior tint
-            drawPath(path = quadPath, color = Teal500.copy(alpha = 0.15f))
-
-            // Boundary stroke
-            drawPath(
-                path = quadPath,
-                color = Teal500,
-                style = Stroke(width = 2.5f.dp.toPx())
-            )
-
-            // Subtle rule-of-thirds grid inside quad
-            val midTop = Offset((tl.x + tr.x) / 2f, (tl.y + tr.y) / 2f)
-            val midBottom = Offset((bl.x + br.x) / 2f, (bl.y + br.y) / 2f)
-            val midLeft = Offset((tl.x + bl.x) / 2f, (tl.y + bl.y) / 2f)
-            val midRight = Offset((tr.x + br.x) / 2f, (tr.y + br.y) / 2f)
-            val dashedStroke = Stroke(
-                width = 1.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
-            )
-            drawLine(Teal500.copy(alpha = 0.4f), midTop, midBottom, strokeWidth = dashedStroke.width, pathEffect = dashedStroke.pathEffect)
-            drawLine(Teal500.copy(alpha = 0.4f), midLeft, midRight, strokeWidth = dashedStroke.width, pathEffect = dashedStroke.pathEffect)
-
-            // 5. Draw 4 corner handles
-            listOf(tl, tr, br, bl).forEach { pt ->
-                drawCircle(color = Teal700, radius = 13.dp.toPx(), center = pt)
-                drawCircle(color = Color.White, radius = 9.dp.toPx(), center = pt)
-                drawCircle(color = Teal500, radius = 4.dp.toPx(), center = pt)
+            // 5. Scrim outside quadrilateral (dim non-selected region)
+            clipPath(quadPath, clipOp = ClipOp.Difference) {
+                drawRect(
+                    color = Color.Black.copy(alpha = 0.45f),
+                    topLeft = Offset(computedRect.left, computedRect.top),
+                    size = Size(computedRect.width, computedRect.height)
+                )
             }
 
-            // 6. Corner Magnifier Loupe while dragging
+            // 6. Subtle rule-of-thirds grid lines inside quad
+            clipPath(quadPath) {
+                val dashedStroke = Stroke(
+                    width = 1.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+                )
+                val gridColor = Color.White.copy(alpha = 0.35f)
+
+                val top1 = Offset(tl.x + (tr.x - tl.x) / 3f, tl.y + (tr.y - tl.y) / 3f)
+                val top2 = Offset(tl.x + (tr.x - tl.x) * 2f / 3f, tl.y + (tr.y - tl.y) * 2f / 3f)
+                val bot1 = Offset(bl.x + (br.x - bl.x) / 3f, bl.y + (br.y - bl.y) / 3f)
+                val bot2 = Offset(bl.x + (br.x - bl.x) * 2f / 3f, bl.y + (br.y - bl.y) * 2f / 3f)
+                val left1 = Offset(tl.x + (bl.x - tl.x) / 3f, tl.y + (bl.y - tl.y) / 3f)
+                val left2 = Offset(tl.x + (bl.x - tl.x) * 2f / 3f, tl.y + (bl.y - tl.y) * 2f / 3f)
+                val right1 = Offset(tr.x + (br.x - tr.x) / 3f, tr.y + (br.y - tr.y) / 3f)
+                val right2 = Offset(tr.x + (br.x - tr.x) * 2f / 3f, tr.y + (br.y - tr.y) * 2f / 3f)
+
+                drawLine(gridColor, top1, bot1, strokeWidth = dashedStroke.width, pathEffect = dashedStroke.pathEffect)
+                drawLine(gridColor, top2, bot2, strokeWidth = dashedStroke.width, pathEffect = dashedStroke.pathEffect)
+                drawLine(gridColor, left1, right1, strokeWidth = dashedStroke.width, pathEffect = dashedStroke.pathEffect)
+                drawLine(gridColor, left2, right2, strokeWidth = dashedStroke.width, pathEffect = dashedStroke.pathEffect)
+            }
+
+            // 7. Quad boundary stroke in surgical accent
+            drawPath(
+                path = quadPath,
+                color = accentSurgical,
+                style = Stroke(width = strokeWidthPx)
+            )
+
+            // 8. 4 corner circular handles (24dp outer ring in accentSurgical with white center dot)
+            listOf(tl, tr, br, bl).forEach { pt ->
+                drawCircle(color = accentSurgical, radius = handleRadiusPx, center = pt)
+                drawCircle(color = Color.White, radius = handleInnerDotPx, center = pt)
+                drawCircle(color = accentSurgical, radius = handleCenterAccentPx, center = pt)
+            }
+
+            // 9. Precision Magnifier Loupe while dragging
             val corner = activeCorner
             if (corner != null) {
                 val activeCornerPt = when (corner) {
@@ -700,11 +864,10 @@ private fun PerspectiveCropCanvas(
                     CornerId.BOTTOM_LEFT -> bl
                 }
 
-                // Place loupe above touch, clamped so it stays inside canvas
                 var loupeX = currentTouch.x
                 var loupeY = currentTouch.y - loupeOffsetY
                 if (loupeY - loupeRadiusPx < 0f) {
-                    loupeY = currentTouch.y + loupeOffsetY // Flip below if too high
+                    loupeY = currentTouch.y + loupeOffsetY
                 }
                 loupeX = loupeX.coerceIn(loupeRadiusPx + 8f, canvasW - loupeRadiusPx - 8f)
                 val loupeCenter = Offset(loupeX, loupeY)
@@ -713,7 +876,7 @@ private fun PerspectiveCropCanvas(
                     addOval(Rect(loupeCenter, loupeRadiusPx))
                 }
 
-                // Draw zoomed image within circular loupe
+                // Zoomed preview inside loupe
                 clipPath(loupePath) {
                     drawRect(color = Color.Black)
                     withTransform({
@@ -728,33 +891,33 @@ private fun PerspectiveCropCanvas(
                     }
                 }
 
-                // Loupe border ring
+                // Loupe border rings: crisp white and surgical accent
                 drawCircle(
                     color = Color.White,
                     radius = loupeRadiusPx,
                     center = loupeCenter,
-                    style = Stroke(width = 3.dp.toPx())
+                    style = Stroke(width = 2.5f.dp.toPx())
                 )
                 drawCircle(
-                    color = Teal500,
+                    color = accentSurgical,
                     radius = loupeRadiusPx + 1.dp.toPx(),
                     center = loupeCenter,
-                    style = Stroke(width = 1.5.dp.toPx())
+                    style = Stroke(width = 1.dp.toPx())
                 )
 
-                // Precision crosshair at loupe center
-                val crosshairLen = 14.dp.toPx()
+                // Precision crosshairs
+                val crosshairLen = 12.dp.toPx()
                 drawLine(
-                    color = AlertRed,
+                    color = accentSurgical,
                     start = Offset(loupeCenter.x - crosshairLen, loupeCenter.y),
                     end = Offset(loupeCenter.x + crosshairLen, loupeCenter.y),
-                    strokeWidth = 1.5.dp.toPx()
+                    strokeWidth = 1.5f.dp.toPx()
                 )
                 drawLine(
-                    color = AlertRed,
+                    color = accentSurgical,
                     start = Offset(loupeCenter.x, loupeCenter.y - crosshairLen),
                     end = Offset(loupeCenter.x, loupeCenter.y + crosshairLen),
-                    strokeWidth = 1.5.dp.toPx()
+                    strokeWidth = 1.5f.dp.toPx()
                 )
             }
         }
