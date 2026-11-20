@@ -257,7 +257,15 @@ fun WatermarkStudioScreen(
                 )
             }
 
-            val fileUri = exportedFile.toUri()
+            val fileUri = try {
+                androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    exportedFile
+                )
+            } catch (_: Exception) {
+                exportedFile.toUri()
+            }
             val fileSize = exportedFile.length()
             val fileName = exportedFile.name
 

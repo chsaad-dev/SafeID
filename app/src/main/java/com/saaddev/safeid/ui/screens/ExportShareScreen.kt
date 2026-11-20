@@ -66,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import com.saaddev.safeid.ads.InterstitialAdManager
 import com.saaddev.safeid.data.model.ExportFormat
 import com.saaddev.safeid.engine.ExportAndCompressionEngine
@@ -139,20 +140,42 @@ fun ExportShareScreen(
         }
     }
 
-    // Share via WhatsApp / Email action
+    // Share via WhatsApp / Email action with secure FileProvider URI
     fun shareExportedFile() {
-        val uri = exportConfig.exportedFileUri
-        if (uri != null) {
-            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                type = exportConfig.format.mimeType
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(Intent.createChooser(shareIntent, "Share Safe Document"))
+        val fileName = exportConfig.exportedFileName
+        val file = if (fileName != null) {
+            File(context.cacheDir, "safeid_exports/$fileName")
+        } else {
+            val path = exportConfig.exportedFileUri?.path
+            if (path != null) File(path) else null
+        }
 
-            // Trigger interstitial ad only AFTER user taps Share
-            (context as? Activity)?.let { activity ->
-                InterstitialAdManager.showIfReady(activity)
+        if (file != null && file.exists()) {
+            try {
+                val contentUri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = exportConfig.format.mimeType
+                    putExtra(Intent.EXTRA_STREAM, contentUri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = Intent.createChooser(shareIntent, "Share Safe Document").apply {
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(chooser)
+
+                // Trigger interstitial ad only AFTER user taps Share
+                (context as? Activity)?.let { activity ->
+                    InterstitialAdManager.showIfReady(activity)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("SafeID", "shareExportedFile failed", e)
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("Failed to open share sheet: ${e.localizedMessage}")
+                }
             }
         } else {
             coroutineScope.launch {
