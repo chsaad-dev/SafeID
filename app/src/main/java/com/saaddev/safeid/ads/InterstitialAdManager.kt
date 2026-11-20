@@ -10,10 +10,10 @@ import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.saaddev.safeid.BuildConfig
 
 object InterstitialAdManager {
 
-    private const val TEST_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712"
     private const val COOLDOWN_MS = 180_000L // Strict 3-minute cooldown (180,000 ms)
 
     private var interstitialAd: InterstitialAd? = null
@@ -21,7 +21,7 @@ object InterstitialAdManager {
     private var lastAdShownTimestamp: Long = 0L
 
     /**
-     * Preloads Google's test Interstitial Ad silently in the background when online.
+     * Preloads Interstitial Ad silently in the background when online.
      */
     fun load(context: Context) {
         if (interstitialAd != null || isLoading) return
@@ -31,7 +31,7 @@ object InterstitialAdManager {
         val adRequest = AdRequest.Builder().build()
         InterstitialAd.load(
             context.applicationContext,
-            TEST_INTERSTITIAL_AD_UNIT_ID,
+            BuildConfig.ADMOB_INTERSTITIAL_ID,
             adRequest,
             object : InterstitialAdLoadCallback() {
                 override fun onAdLoaded(ad: InterstitialAd) {

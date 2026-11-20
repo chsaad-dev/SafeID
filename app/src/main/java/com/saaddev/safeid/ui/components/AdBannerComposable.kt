@@ -22,17 +22,16 @@ import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.LoadAdError
-
-const val GOOGLE_TEST_BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/6300978111"
+import com.saaddev.safeid.BuildConfig
 
 /**
  * Reusable AdMob Banner Composable.
- * Loads Google's test banner ID and collapses cleanly to 0.dp height if offline or failed to load.
+ * Loads AdMob banner ID from BuildConfig and collapses cleanly to 0.dp height if offline or failed to load.
  */
 @Composable
 fun AdBannerComposable(
     modifier: Modifier = Modifier,
-    adUnitId: String = GOOGLE_TEST_BANNER_AD_UNIT_ID
+    adUnitId: String = BuildConfig.ADMOB_BANNER_ID
 ) {
     val context = LocalContext.current
     val isOnline = remember(context) { isNetworkAvailable(context) }
