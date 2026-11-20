@@ -1,13 +1,18 @@
 package com.saaddev.safeid.ui.screens
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -50,6 +55,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,19 +63,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.exifinterface.media.ExifInterface
 import com.saaddev.safeid.ui.components.AdBannerComposable
 import com.saaddev.safeid.ui.theme.LocalThemeMode
 import com.saaddev.safeid.ui.theme.LocalThemeModeChanger
 import com.saaddev.safeid.ui.theme.SafeIdTheme
 import com.saaddev.safeid.ui.theme.ThemeMode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 
 private enum class SheetMode {
     NONE,
@@ -112,6 +127,29 @@ fun HomeScreen(
         )
     }
 
+    // Helper: Copy gallery URI stream into internal app cache for persistent read & thumbnail decoding
+    fun copyUriToTemp(uri: Uri, name: String): Uri {
+        return try {
+            val exportDir = File(context.cacheDir, "safeid_exports").apply { mkdirs() }
+            val tempFile = File(exportDir, "${name}_${System.currentTimeMillis()}.jpg")
+            val stream = if (uri.scheme == "file" || uri.scheme == null) {
+                val path = uri.path
+                if (path != null) FileInputStream(File(path)) else null
+            } else {
+                context.contentResolver.openInputStream(uri)
+            }
+            stream?.use { input ->
+                FileOutputStream(tempFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            Uri.fromFile(tempFile)
+        } catch (e: Exception) {
+            android.util.Log.e("SafeID", "copyUriToTemp failed", e)
+            uri
+        }
+    }
+
     // Camera Result Launcher
     val takePictureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
@@ -126,7 +164,9 @@ fun HomeScreen(
                 SheetMode.FRONT_BACK_GUIDED -> {
                     if (activeTargetSide == TargetSide.FRONT) {
                         frontUri = capturedUri
-                        activeTargetSide = TargetSide.BACK
+                        if (backUri == null) {
+                            activeTargetSide = TargetSide.BACK
+                        }
                     } else {
                         backUri = capturedUri
                     }
@@ -173,14 +213,18 @@ fun HomeScreen(
             when (sheetMode) {
                 SheetMode.SINGLE_PICKER -> {
                     sheetMode = SheetMode.NONE
-                    onSingleDocumentSelected(uri)
+                    val safeUri = copyUriToTemp(uri, "single")
+                    onSingleDocumentSelected(safeUri)
                 }
                 SheetMode.FRONT_BACK_GUIDED -> {
+                    val safeUri = copyUriToTemp(uri, if (activeTargetSide == TargetSide.FRONT) "front" else "back")
                     if (activeTargetSide == TargetSide.FRONT) {
-                        frontUri = uri
-                        activeTargetSide = TargetSide.BACK
+                        frontUri = safeUri
+                        if (backUri == null) {
+                            activeTargetSide = TargetSide.BACK
+                        }
                     } else {
-                        backUri = uri
+                        backUri = safeUri
                     }
                 }
                 SheetMode.NONE -> {}
@@ -527,7 +571,8 @@ private fun SinglePickerSheetContent(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .padding(bottom = 32.dp),
+            .navigationBarsPadding()
+            .padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -574,14 +619,35 @@ private fun FrontBackGuidedSheetContent(
     onGalleryClick: () -> Unit,
     onContinue: () -> Unit
 ) {
+    val context = LocalContext.current
     val colors = SafeIdTheme.colors
+
+    var frontThumb by remember { mutableStateOf<Bitmap?>(null) }
+    var backThumb by remember { mutableStateOf<Bitmap?>(null) }
+
+    LaunchedEffect(frontUri) {
+        frontThumb = if (frontUri != null) {
+            withContext(Dispatchers.IO) {
+                loadThumbnailSafely(context, frontUri)
+            }
+        } else null
+    }
+
+    LaunchedEffect(backUri) {
+        backThumb = if (backUri != null) {
+            withContext(Dispatchers.IO) {
+                loadThumbnailSafely(context, backUri)
+            }
+        } else null
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .padding(bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+            .navigationBarsPadding()
+            .padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -598,7 +664,7 @@ private fun FrontBackGuidedSheetContent(
             )
         }
 
-        // Side selector status pills
+        // Side selector status pills (Equal height: 52.dp with mini thumbnails)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -607,29 +673,42 @@ private fun FrontBackGuidedSheetContent(
                 label = "1. Front Side",
                 isReady = frontUri != null,
                 isActive = activeSide == TargetSide.FRONT,
-                modifier = Modifier.weight(1f),
+                thumbnailBitmap = frontThumb,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(52.dp),
                 onClick = onSelectFront
             )
             SidePill(
                 label = "2. Back Side",
                 isReady = backUri != null,
                 isActive = activeSide == TargetSide.BACK,
-                modifier = Modifier.weight(1f),
+                thumbnailBitmap = backThumb,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(52.dp),
                 onClick = onSelectBack
             )
         }
 
-        val promptText = if (activeSide == TargetSide.FRONT) {
-            "Capture or select FRONT side:"
-        } else {
-            "Capture or select BACK side:"
+        val isBothReady = frontUri != null && backUri != null
+        val isFrontMissing = frontUri == null && backUri != null
+        val isBackMissing = frontUri != null && backUri == null
+
+        val promptText = when {
+            isBothReady -> "Both sides ready. Tap a tab above to replace, or continue."
+            isBackMissing -> "Step 2: Select or capture the BACK side"
+            isFrontMissing -> "Step 1: Select or capture the FRONT side"
+            activeSide == TargetSide.FRONT -> "Step 1: Select or capture the FRONT side"
+            else -> "Step 2: Select or capture the BACK side"
         }
 
         Text(
             text = promptText,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = colors.textPrimary
+            fontSize = if (isBothReady) 13.sp else 14.sp,
+            fontWeight = if (isBothReady) FontWeight.Normal else FontWeight.Medium,
+            color = if (isBothReady) colors.textSecondary else colors.textPrimary,
+            lineHeight = 18.sp
         )
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -648,13 +727,12 @@ private fun FrontBackGuidedSheetContent(
             )
         }
 
-        val bothReady = frontUri != null && backUri != null
-        if (bothReady) {
+        if (isBothReady) {
             Button(
                 onClick = onContinue,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
+                    .height(52.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = colors.accentPrimary,
@@ -662,17 +740,12 @@ private fun FrontBackGuidedSheetContent(
                 ),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
             ) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = colors.statusSafeDot,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Both Sides Selected • Continue to Crop",
+                    text = "Continue to Crop",
                     fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }
@@ -753,6 +826,7 @@ private fun SidePill(
     label: String,
     isReady: Boolean,
     isActive: Boolean,
+    thumbnailBitmap: Bitmap?,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -771,17 +845,41 @@ private fun SidePill(
         tonalElevation = 0.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = label,
-                fontSize = 13.sp,
-                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (isActive) colors.textPrimary else colors.textSecondary
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                if (thumbnailBitmap != null) {
+                    Image(
+                        bitmap = thumbnailBitmap.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .border(1.dp, colors.borderHairline, RoundedCornerShape(6.dp))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                Text(
+                    text = label,
+                    fontSize = 13.sp,
+                    fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isActive) colors.textPrimary else colors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
             if (isReady) {
+                Spacer(modifier = Modifier.width(6.dp))
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Selected",
@@ -790,5 +888,70 @@ private fun SidePill(
                 )
             }
         }
+    }
+}
+
+/**
+ * Fast, lightweight thumbnail decoder with EXIF orientation correction.
+ */
+private fun loadThumbnailSafely(context: Context, uri: Uri): Bitmap? {
+    return try {
+        val stream = if (uri.scheme == "file" || uri.scheme == null) {
+            val path = uri.path ?: return null
+            FileInputStream(File(path))
+        } else {
+            context.contentResolver.openInputStream(uri)
+        } ?: return null
+
+        val bytes = stream.use { it.readBytes() }
+        if (bytes.isEmpty()) return null
+
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        if (options.outWidth <= 0 || options.outHeight <= 0) return null
+
+        // Downsample to ~120px for high density 28dp thumbnail
+        var inSampleSize = 1
+        val targetSize = 120
+        while (options.outWidth / (inSampleSize * 2) >= targetSize &&
+            options.outHeight / (inSampleSize * 2) >= targetSize
+        ) {
+            inSampleSize *= 2
+        }
+
+        options.inSampleSize = inSampleSize
+        options.inJustDecodeBounds = false
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888
+
+        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+
+        val orientation = try {
+            ExifInterface(ByteArrayInputStream(bytes)).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )
+        } catch (_: Exception) {
+            ExifInterface.ORIENTATION_NORMAL
+        }
+
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.postScale(1f, -1f)
+        }
+
+        if (!matrix.isIdentity) {
+            val rotated = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
+            if (rotated != decoded) decoded.recycle()
+            rotated
+        } else {
+            decoded
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("SafeID", "loadThumbnailSafely failed", e)
+        null
     }
 }
