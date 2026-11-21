@@ -161,6 +161,12 @@ fun PassportGridScreen(
                     panYNormalized = panY
                 )
 
+                val defaultBaseName = viewModel.generateDefaultBaseFileName(
+                    isPassportGrid = true,
+                    isBundle = false,
+                    preset = null
+                )
+
                 val result = PassportGridEngine.generatePrintSheet(
                     context = context,
                     croppedPortrait = croppedFull,
@@ -168,7 +174,8 @@ fun PassportGridScreen(
                     paperSize = selectedPaper,
                     copies = selectedCopies,
                     showCutGuides = showCutGuides,
-                    exportAsPdf = (exportFormat == ExportFormat.PDF)
+                    exportAsPdf = (exportFormat == ExportFormat.PDF),
+                    baseFileName = defaultBaseName
                 )
 
                 val contentUri = FileProvider.getUriForFile(
@@ -184,6 +191,7 @@ fun PassportGridScreen(
                             format = exportFormat,
                             exportedFileUri = contentUri,
                             exportedFileName = result.file.name,
+                            exportBaseFileName = defaultBaseName,
                             exportedFileSizeBytes = result.fileSizeBytes
                         )
                     }

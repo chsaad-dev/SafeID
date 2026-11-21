@@ -122,7 +122,8 @@ object PassportGridEngine {
         paperSize: PaperSheetSize,
         copies: GridCopies,
         showCutGuides: Boolean,
-        exportAsPdf: Boolean
+        exportAsPdf: Boolean,
+        baseFileName: String? = null
     ): PassportGridResult = withContext(Dispatchers.IO) {
         val sheetW = paperSize.widthPx
         val sheetH = paperSize.heightPx
@@ -143,12 +144,10 @@ object PassportGridEngine {
             scaleMultiplier = 1.0f
         )
 
-        val timestamp = System.currentTimeMillis()
         val exportDir = File(context.cacheDir, "safeid_exports").apply { mkdirs() }
-
         val savedFile: File
         if (exportAsPdf) {
-            val fileName = "SafeID_PassportGrid_$timestamp.pdf"
+            val fileName = if (baseFileName != null) "$baseFileName.pdf" else "SafeID_PassportGrid_${System.currentTimeMillis()}.pdf"
             savedFile = File(exportDir, fileName)
             val pdfDocument = PdfDocument()
             val pageInfo = PdfDocument.PageInfo.Builder(sheetW, sheetH, 1).create()
@@ -160,7 +159,7 @@ object PassportGridEngine {
             }
             pdfDocument.close()
         } else {
-            val fileName = "SafeID_PassportGrid_$timestamp.jpg"
+            val fileName = if (baseFileName != null) "$baseFileName.jpg" else "SafeID_PassportGrid_${System.currentTimeMillis()}.jpg"
             savedFile = File(exportDir, fileName)
             FileOutputStream(savedFile).use { out ->
                 fullSheetBitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)

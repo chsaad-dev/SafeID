@@ -289,7 +289,8 @@ object ExportAndCompressionEngine {
         watermarkText: String,
         watermarkColorInt: Int,
         watermarkOpacity: Float,
-        targetSizeKb: Int?
+        targetSizeKb: Int?,
+        baseFileName: String? = null
     ): MultiPagePdfResult = withContext(Dispatchers.Default) {
         var totalStripped = 0
         val processedPages = mutableListOf<Bitmap>()
@@ -369,8 +370,7 @@ object ExportAndCompressionEngine {
             pdfDocument.finishPage(page)
         }
 
-        val timestamp = System.currentTimeMillis()
-        val fileName = "SafeID_Bundle_$timestamp.pdf"
+        val fileName = if (baseFileName != null) "$baseFileName.pdf" else "SafeID_Bundle_${System.currentTimeMillis()}.pdf"
         val savedFile = savePdfToExportCache(context, pdfDocument, fileName)
 
         MultiPagePdfResult(

@@ -55,6 +55,7 @@ data class ExportConfig(
     val autoDeleteCacheOnExit: Boolean = true,
     val exportedFileUri: Uri? = null,
     val exportedFileSizeBytes: Long = 0L,
-    val exportedFileName: String? = null
+    val exportedFileName: String? = null,
+    val exportBaseFileName: String? = null
 )
 

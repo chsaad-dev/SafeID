@@ -308,6 +308,12 @@ fun MultiPageStudioScreen(
         isGenerating = true
 
         coroutineScope.launch(Dispatchers.Default) {
+            val defaultBaseName = viewModel.generateDefaultBaseFileName(
+                isPassportGrid = false,
+                isBundle = true,
+                preset = null
+            )
+
             val result = ExportAndCompressionEngine.generateMultiPagePdf(
                 context = context,
                 pageUris = pages,
@@ -315,7 +321,8 @@ fun MultiPageStudioScreen(
                 watermarkText = fullWatermarkText,
                 watermarkColorInt = selectedColorInt,
                 watermarkOpacity = watermarkOpacity,
-                targetSizeKb = targetSize.maxKb
+                targetSizeKb = targetSize.maxKb,
+                baseFileName = defaultBaseName
             )
 
             val contentUri = FileProvider.getUriForFile(
@@ -331,6 +338,7 @@ fun MultiPageStudioScreen(
                         format = ExportFormat.PDF,
                         exportedFileUri = contentUri,
                         exportedFileName = result.pdfFile.name,
+                        exportBaseFileName = defaultBaseName,
                         exportedFileSizeBytes = result.fileSizeBytes,
                         watermarkText = fullWatermarkText,
                         watermarkOpacity = watermarkOpacity,

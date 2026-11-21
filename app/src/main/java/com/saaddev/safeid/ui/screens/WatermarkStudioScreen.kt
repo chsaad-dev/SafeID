@@ -241,8 +241,14 @@ fun WatermarkStudioScreen(
                 )
             } else null
 
-            // Step 3: Handle export formats
-            val timestamp = System.currentTimeMillis()
+            // Step 3: Handle export formats with smart default filename
+            val defaultBaseName = viewModel.generateDefaultBaseFileName(
+                isPassportGrid = false,
+                isBundle = false,
+                preset = selectedPreset.chipLabel
+            )
+            val fullFileName = "$defaultBaseName.${selectedFormat.extension}"
+
             val exportedFile = if (selectedFormat == ExportFormat.PDF) {
                 val pdfDoc = if (sessionState.isFrontBackMode && finalBack != null) {
                     ExportAndCompressionEngine.createFrontBackIdCardPdf(finalFront, finalBack)
@@ -252,7 +258,7 @@ fun WatermarkStudioScreen(
                 ExportAndCompressionEngine.savePdfToExportCache(
                     context,
                     pdfDoc,
-                    "SafeID_Export_$timestamp.pdf"
+                    fullFileName
                 )
             } else {
                 // JPG image compression
@@ -263,7 +269,7 @@ fun WatermarkStudioScreen(
                 ExportAndCompressionEngine.saveBytesToExportCache(
                     context,
                     compressionResult.data,
-                    "SafeID_Export_$timestamp.jpg"
+                    fullFileName
                 )
             }
 
@@ -289,7 +295,8 @@ fun WatermarkStudioScreen(
                         watermarkColor = selectedColorInt.toLong(),
                         exportedFileUri = fileUri,
                         exportedFileSizeBytes = fileSize,
-                        exportedFileName = fileName
+                        exportedFileName = fileName,
+                        exportBaseFileName = defaultBaseName
                     )
                 }
                 isExporting = false

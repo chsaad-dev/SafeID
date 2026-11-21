@@ -27,12 +27,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -58,11 +63,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -95,6 +104,15 @@ fun ExportShareScreen(
     var autoDeleteOnExit by remember { mutableStateOf(exportConfig.autoDeleteCacheOnExit) }
     var isSavingToDownloads by remember { mutableStateOf(false) }
     var isSaved by remember { mutableStateOf(false) }
+
+    val focusManager = LocalFocusManager.current
+    val initialBaseName = remember(exportConfig.exportBaseFileName, exportConfig.exportedFileName) {
+        exportConfig.exportBaseFileName
+            ?: exportConfig.exportedFileName?.substringBeforeLast(".")
+            ?: "SafeID_Document"
+    }
+    var fileNameInput by remember(initialBaseName) { mutableStateOf(initialBaseName) }
+    var isRenameFocused by remember { mutableStateOf(false) }
 
     // Preload interstitial ad when reaching Export screen
     LaunchedEffect(Unit) {
@@ -142,12 +160,10 @@ fun ExportShareScreen(
 
     // Share via WhatsApp / Email action with secure FileProvider URI
     fun shareExportedFile() {
-        val fileName = exportConfig.exportedFileName
-        val file = if (fileName != null) {
-            File(context.cacheDir, "safeid_exports/$fileName")
-        } else {
-            val path = exportConfig.exportedFileUri?.path
-            if (path != null) File(path) else null
+        val committedFile = viewModel.commitExportFileRename(context, fileNameInput)
+        val file = committedFile ?: run {
+            val fileName = exportConfig.exportedFileName
+            if (fileName != null) File(context.cacheDir, "safeid_exports/$fileName") else null
         }
 
         if (file != null && file.exists()) {
@@ -186,8 +202,11 @@ fun ExportShareScreen(
 
     // Save to public Downloads/SafeID/ folder via MediaStore
     fun saveToPublicDownloads() {
-        val fileName = exportConfig.exportedFileName ?: return
-        val sourceFile = File(context.cacheDir, "safeid_exports/$fileName")
+        val committedFile = viewModel.commitExportFileRename(context, fileNameInput)
+        val sourceFile = committedFile ?: run {
+            val fileName = exportConfig.exportedFileName ?: return
+            File(context.cacheDir, "safeid_exports/$fileName")
+        }
         if (!sourceFile.exists()) {
             coroutineScope.launch {
                 snackbarHostState.showSnackbar("Source export file not found.")
@@ -207,7 +226,7 @@ fun ExportShareScreen(
                 isSavingToDownloads = false
                 if (savedUri != null) {
                     isSaved = true
-                    snackbarHostState.showSnackbar("Saved to Downloads/SafeID/$fileName")
+                    snackbarHostState.showSnackbar("Saved to Downloads/SafeID/${sourceFile.name}")
 
                     // Trigger interstitial ad only AFTER user taps Save
                     (context as? Activity)?.let { activity ->
@@ -306,8 +325,8 @@ fun ExportShareScreen(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Header: Title with safe icon, filename, and metrics
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        // Header: Title with safe icon, inline editable filename, and metrics
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.fillMaxWidth()
@@ -328,13 +347,111 @@ fun ExportShareScreen(
                                 )
                             }
 
-                            Text(
-                                text = exportConfig.exportedFileName ?: "safeid_export",
-                                fontSize = 13.sp,
-                                color = colors.textSecondary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            // Minimalist Inline Rename Box
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                color = colors.bgSubtle,
+                                border = BorderStroke(
+                                    if (isRenameFocused) 1.5.dp else 1.dp,
+                                    if (isRenameFocused) colors.accentPrimary else colors.borderHairline
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Rename Document",
+                                        tint = colors.textSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    BasicTextField(
+                                        value = fileNameInput,
+                                        onValueChange = { newVal ->
+                                            val cleaned = newVal.replace(Regex("[\\\\/:*?\"<>|]"), "")
+                                            fileNameInput = cleaned
+                                            viewModel.updateExportFileName(cleaned)
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .onFocusChanged { isRenameFocused = it.isFocused },
+                                        singleLine = true,
+                                        textStyle = TextStyle(
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = colors.textPrimary
+                                        ),
+                                        keyboardOptions = KeyboardOptions(
+                                            imeAction = ImeAction.Done
+                                        ),
+                                        keyboardActions = KeyboardActions(
+                                            onDone = {
+                                                focusManager.clearFocus()
+                                                viewModel.commitExportFileRename(context, fileNameInput)
+                                            }
+                                        ),
+                                        cursorBrush = SolidColor(colors.accentPrimary),
+                                        decorationBox = { innerTextField ->
+                                            if (fileNameInput.isEmpty()) {
+                                                Text(
+                                                    text = "Enter filename...",
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Normal,
+                                                    color = colors.textTertiary
+                                                )
+                                            }
+                                            innerTextField()
+                                        }
+                                    )
+
+                                    if (fileNameInput.isNotEmpty() && isRenameFocused) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(20.dp)
+                                                .clip(CircleShape)
+                                                .background(colors.borderHairline)
+                                                .clickable {
+                                                    fileNameInput = ""
+                                                    viewModel.updateExportFileName("")
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Clear Filename",
+                                                tint = colors.textPrimary,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(6.dp))
+
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = colors.bgElevated,
+                                        border = BorderStroke(1.dp, colors.borderHairline)
+                                    ) {
+                                        Text(
+                                            text = ".${exportConfig.format.extension}",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = colors.textSecondary,
+                                            style = TextStyle(fontFeatureSettings = "tnum"),
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                }
+                            }
 
                             val sizeKb = (exportConfig.exportedFileSizeBytes / 1024f).roundToInt()
                             val formatLabel = if (exportConfig.format == ExportFormat.PDF) "PDF Document" else "JPG Image"
