@@ -1,6 +1,7 @@
 package com.saaddev.safeid.ui.screens
 
 import android.graphics.Bitmap
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -77,6 +78,7 @@ import com.saaddev.safeid.data.model.TargetSize
 import com.saaddev.safeid.engine.BlurStroke
 import com.saaddev.safeid.engine.ExportAndCompressionEngine
 import com.saaddev.safeid.engine.NormalizedPoint
+import com.saaddev.safeid.engine.SensitiveDataOcrEngine
 import com.saaddev.safeid.engine.WatermarkAndBlurEngine
 import com.saaddev.safeid.engine.WatermarkColorPreset
 import com.saaddev.safeid.ui.theme.SafeIdTheme
@@ -117,25 +119,39 @@ fun WatermarkStudioScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val sessionState by viewModel.sessionState.collectAsState()
+    val customPresets by viewModel.customPresets.collectAsState()
     val colors = SafeIdTheme.colors
 
     var activeSide by remember { mutableStateOf(ActiveStudioSide.FRONT) }
     var interactionMode by remember { mutableStateOf(StudioInteractionMode.WATERMARK) }
 
     // Preset & Text state
-    val initialPreset = remember(sessionState.quickPreset) {
+    val initialPreset = remember(sessionState.quickPreset, sessionState.quickPresetText) {
         when (sessionState.quickPreset) {
             "Bank KYC" -> WatermarkPreset.KYC
             "SIM Card" -> WatermarkPreset.SIM
             "Job Portal" -> WatermarkPreset.JOB
             "Visa / Travel" -> WatermarkPreset.VISA
-            else -> WatermarkPreset.KYC
+            else -> if (sessionState.quickPresetText != null) WatermarkPreset.CUSTOM else WatermarkPreset.KYC
         }
     }
 
     var selectedPreset by remember(initialPreset) { mutableStateOf(initialPreset) }
-    var customWatermarkText by remember(initialPreset) { mutableStateOf(initialPreset.textTemplate) }
+    var selectedCustomPresetId by remember(sessionState.quickPreset, sessionState.quickPresetText) {
+        mutableStateOf(
+            if (sessionState.quickPresetText != null) {
+                customPresets.firstOrNull { it.label == sessionState.quickPreset }?.id
+            } else null
+        )
+    }
+    var selectedCustomPresetLabel by remember(sessionState.quickPreset, sessionState.quickPresetText) {
+        mutableStateOf(if (sessionState.quickPresetText != null) sessionState.quickPreset else null)
+    }
+    var customWatermarkText by remember(initialPreset, sessionState.quickPresetText) {
+        mutableStateOf(sessionState.quickPresetText ?: initialPreset.textTemplate)
+    }
     var includeDate by remember { mutableStateOf(true) }
+    var isOcrScanning by remember { mutableStateOf(false) }
 
     // Styling state
     var watermarkOpacity by remember { mutableFloatStateOf(0.25f) }
@@ -175,6 +191,25 @@ fun WatermarkStudioScreen(
             frontBlurStrokes = frontBlurStrokes + newStroke
         } else {
             backBlurStrokes = backBlurStrokes + newStroke
+        }
+    }
+
+    fun runAutoMaskOcr() {
+        val bmp = currentBaseBitmap ?: return
+        isOcrScanning = true
+        coroutineScope.launch {
+            val detectedStrokes = SensitiveDataOcrEngine.detectSensitiveStrokes(bmp)
+            isOcrScanning = false
+            if (detectedStrokes.isEmpty()) {
+                Toast.makeText(context, "No ID numbers detected on this side", Toast.LENGTH_SHORT).show()
+            } else {
+                updateCurrentBlurStrokes(currentBlurStrokes + detectedStrokes)
+                Toast.makeText(
+                    context,
+                    "Masked ${detectedStrokes.size} sensitive number${if (detectedStrokes.size == 1) "" else "s"}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
         }
     }
 
@@ -245,7 +280,7 @@ fun WatermarkStudioScreen(
             val defaultBaseName = viewModel.generateDefaultBaseFileName(
                 isPassportGrid = false,
                 isBundle = false,
-                preset = selectedPreset.chipLabel
+                preset = selectedCustomPresetLabel ?: selectedPreset.chipLabel
             )
             val fullFileName = "$defaultBaseName.${selectedFormat.extension}"
 
@@ -502,21 +537,56 @@ fun WatermarkStudioScreen(
                     }
 
                     if (interactionMode == StudioInteractionMode.BLUR_BRUSH) {
-                        TextButton(
-                            onClick = {
-                                if (currentBlurStrokes.isNotEmpty()) {
-                                    updateCurrentBlurStrokes(currentBlurStrokes.dropLast(1))
-                                }
-                            },
-                            enabled = currentBlurStrokes.isNotEmpty(),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(
-                                text = "Undo",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (currentBlurStrokes.isNotEmpty()) colors.textPrimary else colors.textTertiary
-                            )
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = colors.bgSubtle,
+                                border = BorderStroke(1.dp, colors.borderHairline),
+                                modifier = Modifier.clickable(enabled = !isOcrScanning && currentBaseBitmap != null) {
+                                    runAutoMaskOcr()
+                                }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    if (isOcrScanning) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(11.dp),
+                                            strokeWidth = 1.5.dp,
+                                            color = colors.accentSurgical
+                                        )
+                                    }
+                                    Text(
+                                        text = if (isOcrScanning) "Scanning..." else "Auto-Mask IDs",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colors.accentSurgical,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+
+                            TextButton(
+                                onClick = {
+                                    if (currentBlurStrokes.isNotEmpty()) {
+                                        updateCurrentBlurStrokes(currentBlurStrokes.dropLast(1))
+                                    }
+                                },
+                                enabled = currentBlurStrokes.isNotEmpty(),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Undo",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (currentBlurStrokes.isNotEmpty()) colors.textPrimary else colors.textTertiary
+                                )
+                            }
                         }
                     }
                 }
@@ -586,18 +656,45 @@ fun WatermarkStudioScreen(
                         color = colors.textPrimary
                     )
 
-                    // LazyRow for presets
+                    // LazyRow for presets (built-in + custom)
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(WatermarkPreset.entries.toTypedArray()) { preset ->
-                            val isSelected = selectedPreset == preset
+                        items(customPresets, key = { it.id }) { custom ->
+                            val isSelected = selectedCustomPresetId == custom.id
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
                                 color = if (isSelected) colors.accentPrimary else colors.bgSubtle,
                                 border = if (isSelected) null else BorderStroke(1.dp, colors.borderHairline),
                                 modifier = Modifier.clickable {
+                                    selectedCustomPresetId = custom.id
+                                    selectedCustomPresetLabel = custom.label
+                                    selectedPreset = WatermarkPreset.CUSTOM
+                                    customWatermarkText = custom.templateText
+                                }
+                            ) {
+                                Text(
+                                    text = custom.label,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                    color = if (isSelected) colors.onAccentPrimary else colors.textSecondary,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                                )
+                            }
+                        }
+
+                        items(WatermarkPreset.entries.toTypedArray()) { preset ->
+                            val isSelected = selectedCustomPresetId == null && selectedPreset == preset
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) colors.accentPrimary else colors.bgSubtle,
+                                border = if (isSelected) null else BorderStroke(1.dp, colors.borderHairline),
+                                modifier = Modifier.clickable {
+                                    selectedCustomPresetId = null
+                                    selectedCustomPresetLabel = null
                                     selectedPreset = preset
                                     customWatermarkText = preset.textTemplate
                                 }

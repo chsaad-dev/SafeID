@@ -12,10 +12,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +39,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
@@ -47,6 +50,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -54,9 +58,12 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -78,6 +85,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.exifinterface.media.ExifInterface
+import com.saaddev.safeid.data.CustomWatermarkPreset
 import com.saaddev.safeid.ui.components.AdBannerComposable
 import com.saaddev.safeid.ui.theme.LocalThemeMode
 import com.saaddev.safeid.ui.theme.LocalThemeModeChanger
@@ -103,14 +111,17 @@ private enum class TargetSide {
     BACK
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
+    customPresets: List<CustomWatermarkPreset> = emptyList(),
+    onAddCustomPreset: (label: String, templateText: String) -> Unit = { _, _ -> },
+    onDeleteCustomPreset: (id: String) -> Unit = {},
     onSingleDocumentSelected: (Uri) -> Unit,
     onFrontBackDocumentsSelected: (frontUri: Uri, backUri: Uri) -> Unit,
     onMultiPageBundleSelected: (List<Uri>) -> Unit = {},
     onPassportPhotoSelected: (Uri) -> Unit = {},
-    onQuickPresetSelected: (Uri, String) -> Unit = { uri, _ -> onSingleDocumentSelected(uri) }
+    onQuickPresetSelected: (Uri, String, String?) -> Unit = { uri, _, _ -> onSingleDocumentSelected(uri) }
 ) {
     val context = LocalContext.current
     val colors = SafeIdTheme.colors
@@ -120,6 +131,9 @@ fun HomeScreen(
     var sheetMode by remember { mutableStateOf(SheetMode.NONE) }
     var activeTargetSide by remember { mutableStateOf(TargetSide.FRONT) }
     var pendingQuickPreset by remember { mutableStateOf<String?>(null) }
+    var pendingQuickPresetText by remember { mutableStateOf<String?>(null) }
+    var showAddPresetDialog by remember { mutableStateOf(false) }
+    var presetToDelete by remember { mutableStateOf<CustomWatermarkPreset?>(null) }
 
     var frontUri by remember { mutableStateOf<Uri?>(null) }
     var backUri by remember { mutableStateOf<Uri?>(null) }
@@ -170,9 +184,11 @@ fun HomeScreen(
                 SheetMode.SINGLE_PICKER -> {
                     sheetMode = SheetMode.NONE
                     val preset = pendingQuickPreset
+                    val presetText = pendingQuickPresetText
                     pendingQuickPreset = null
+                    pendingQuickPresetText = null
                     if (preset != null) {
-                        onQuickPresetSelected(capturedUri, preset)
+                        onQuickPresetSelected(capturedUri, preset, presetText)
                     } else {
                         onSingleDocumentSelected(capturedUri)
                     }
@@ -239,9 +255,11 @@ fun HomeScreen(
                     sheetMode = SheetMode.NONE
                     val safeUri = copyUriToTemp(uri, "single")
                     val preset = pendingQuickPreset
+                    val presetText = pendingQuickPresetText
                     pendingQuickPreset = null
+                    pendingQuickPresetText = null
                     if (preset != null) {
-                        onQuickPresetSelected(safeUri, preset)
+                        onQuickPresetSelected(safeUri, preset, presetText)
                     } else {
                         onSingleDocumentSelected(safeUri)
                     }
@@ -517,6 +535,7 @@ fun HomeScreen(
                             border = BorderStroke(1.dp, colors.borderHairline),
                             modifier = Modifier.clickable {
                                 pendingQuickPreset = preset
+                                pendingQuickPresetText = null
                                 sheetMode = SheetMode.SINGLE_PICKER
                             }
                         ) {
@@ -527,6 +546,62 @@ fun HomeScreen(
                                 color = colors.textPrimary,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
                             )
+                        }
+                    }
+
+                    items(customPresets, key = { it.id }) { custom ->
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = colors.bgElevated,
+                            border = BorderStroke(1.dp, colors.borderHairline),
+                            modifier = Modifier.combinedClickable(
+                                onClick = {
+                                    pendingQuickPreset = custom.label
+                                    pendingQuickPresetText = custom.templateText
+                                    sheetMode = SheetMode.SINGLE_PICKER
+                                },
+                                onLongClick = {
+                                    presetToDelete = custom
+                                }
+                            )
+                        ) {
+                            Text(
+                                text = custom.label,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = colors.textPrimary,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
+                            )
+                        }
+                    }
+
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = colors.bgSubtle,
+                            border = BorderStroke(1.dp, colors.borderHairline),
+                            modifier = Modifier.clickable {
+                                showAddPresetDialog = true
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Add Custom Preset",
+                                    tint = colors.textSecondary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "Add Custom",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = colors.textSecondary
+                                )
+                            }
                         }
                     }
                 }
@@ -608,6 +683,116 @@ fun HomeScreen(
                 SheetMode.NONE -> {}
             }
         }
+    }
+
+    if (showAddPresetDialog) {
+        var newLabel by remember { mutableStateOf("") }
+        var newTemplate by remember { mutableStateOf("") }
+
+        AlertDialog(
+            onDismissRequest = { showAddPresetDialog = false },
+            containerColor = colors.bgElevated,
+            title = {
+                Text(
+                    text = "New Watermark Preset",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = newLabel,
+                        onValueChange = { if (it.length <= 24) newLabel = it },
+                        label = { Text("Short Label (e.g. Acme HR)", fontSize = 13.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = colors.accentPrimary,
+                            unfocusedBorderColor = colors.borderHairline,
+                            focusedTextColor = colors.textPrimary,
+                            unfocusedTextColor = colors.textPrimary,
+                            focusedLabelColor = colors.textSecondary,
+                            unfocusedLabelColor = colors.textTertiary
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    OutlinedTextField(
+                        value = newTemplate,
+                        onValueChange = { if (it.length <= 80) newTemplate = it },
+                        label = { Text("Watermark Text (e.g. FOR ACME HR ONLY)", fontSize = 13.sp) },
+                        maxLines = 2,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = colors.accentPrimary,
+                            unfocusedBorderColor = colors.borderHairline,
+                            focusedTextColor = colors.textPrimary,
+                            unfocusedTextColor = colors.textPrimary,
+                            focusedLabelColor = colors.textSecondary,
+                            unfocusedLabelColor = colors.textTertiary
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onAddCustomPreset(newLabel, newTemplate)
+                        showAddPresetDialog = false
+                    },
+                    enabled = newLabel.isNotBlank() && newTemplate.isNotBlank(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.accentPrimary,
+                        contentColor = colors.onAccentPrimary
+                    )
+                ) {
+                    Text("Save", fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddPresetDialog = false }) {
+                    Text("Cancel", color = colors.textSecondary)
+                }
+            }
+        )
+    }
+
+    presetToDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { presetToDelete = null },
+            containerColor = colors.bgElevated,
+            title = {
+                Text(
+                    text = "Remove Custom Preset",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "Delete \"${target.label}\" from your quick watermark presets?",
+                    fontSize = 14.sp,
+                    color = colors.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteCustomPreset(target.id)
+                        presetToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = colors.textPrimary, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { presetToDelete = null }) {
+                    Text("Cancel", color = colors.textSecondary)
+                }
+            }
+        )
     }
 }
 

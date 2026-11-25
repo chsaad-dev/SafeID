@@ -11,6 +11,7 @@ data class SafeIdSessionState(
     val bundleImageUris: List<Uri> = emptyList(),
     val passportPhotoUri: Uri? = null,
     val quickPreset: String? = null,
+    val quickPresetText: String? = null,
     val primaryPrivacyReport: PrivacyAuditReport? = null,
     val secondaryPrivacyReport: PrivacyAuditReport? = null,
     val processedBitmap: Bitmap? = null,

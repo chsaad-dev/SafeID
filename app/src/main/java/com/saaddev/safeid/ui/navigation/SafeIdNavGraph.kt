@@ -1,7 +1,11 @@
 package com.saaddev.safeid.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -19,6 +23,13 @@ fun SafeIdNavGraph(
     viewModel: SafeIdViewModel,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val customPresets by viewModel.customPresets.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadCustomPresets(context)
+    }
+
     NavHost(
         navController = navController,
         startDestination = Screen.Home.route,
@@ -26,6 +37,13 @@ fun SafeIdNavGraph(
     ) {
         composable(Screen.Home.route) {
             HomeScreen(
+                customPresets = customPresets,
+                onAddCustomPreset = { label, text ->
+                    viewModel.addCustomPreset(context, label, text)
+                },
+                onDeleteCustomPreset = { id ->
+                    viewModel.deleteCustomPreset(context, id)
+                },
                 onSingleDocumentSelected = { uri ->
                     viewModel.setSingleDocument(uri)
                     navController.navigate(Screen.CropAudit.route)
@@ -42,8 +60,8 @@ fun SafeIdNavGraph(
                     viewModel.setPassportPhoto(uri)
                     navController.navigate(Screen.PassportGrid.route)
                 },
-                onQuickPresetSelected = { uri, preset ->
-                    viewModel.setSingleDocument(uri, preset)
+                onQuickPresetSelected = { uri, presetLabel, presetText ->
+                    viewModel.setSingleDocument(uri, presetLabel, presetText)
                     navController.navigate(Screen.CropAudit.route)
                 }
             )

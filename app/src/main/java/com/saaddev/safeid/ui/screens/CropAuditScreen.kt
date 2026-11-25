@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.saaddev.safeid.engine.AutoEdgeDetector
 import com.saaddev.safeid.engine.ExifPrivacyEngine
 import com.saaddev.safeid.engine.NormalizedCornerPoints
 import com.saaddev.safeid.engine.NormalizedPoint
@@ -127,27 +128,35 @@ fun CropAuditScreen(
     var backFilter by remember { mutableStateOf(ScanFilter.ORIGINAL) }
     var backRotation by remember { mutableFloatStateOf(0f) }
 
-    // Load Front Bitmap & Privacy Audit
+    // Load Front Bitmap, Privacy Audit & Auto-Edge Detection
     LaunchedEffect(sessionState.primaryImageUri) {
         val uri = sessionState.primaryImageUri ?: return@LaunchedEffect
         withContext(Dispatchers.IO) {
             val (report, decoded) = ExifPrivacyEngine.loadAndAudit(context, uri)
+            val detectedCorners = if (decoded != null) {
+                withContext(Dispatchers.Default) { AutoEdgeDetector.detectDocumentCorners(decoded) }
+            } else NormalizedCornerPoints()
             withContext(Dispatchers.Main) {
                 frontReport = report
                 frontBitmap = decoded
+                frontCorners = detectedCorners
                 viewModel.setPrimaryPrivacyReport(report)
             }
         }
     }
 
-    // Load Back Bitmap & Privacy Audit (if Front + Back mode)
+    // Load Back Bitmap, Privacy Audit & Auto-Edge Detection (if Front + Back mode)
     LaunchedEffect(sessionState.secondaryImageUri) {
         val uri = sessionState.secondaryImageUri ?: return@LaunchedEffect
         withContext(Dispatchers.IO) {
             val (report, decoded) = ExifPrivacyEngine.loadAndAudit(context, uri)
+            val detectedCorners = if (decoded != null) {
+                withContext(Dispatchers.Default) { AutoEdgeDetector.detectDocumentCorners(decoded) }
+            } else NormalizedCornerPoints()
             withContext(Dispatchers.Main) {
                 backReport = report
                 backBitmap = decoded
+                backCorners = detectedCorners
                 viewModel.setSecondaryPrivacyReport(report)
             }
         }
@@ -192,6 +201,20 @@ fun CropAuditScreen(
         } else {
             backCorners = NormalizedCornerPoints()
             backRotation = 0f
+        }
+    }
+
+    fun autoDetectCurrent() {
+        val bmp = currentRawBitmap ?: return
+        coroutineScope.launch(Dispatchers.Default) {
+            val rotated = if (currentRotation != 0f) {
+                PerspectiveAndFilterEngine.rotate(bmp, currentRotation)
+            } else bmp
+            val detected = AutoEdgeDetector.detectDocumentCorners(rotated)
+            if (rotated != bmp) rotated.recycle()
+            withContext(Dispatchers.Main) {
+                updateCurrentCorners(detected)
+            }
         }
     }
 
@@ -280,16 +303,31 @@ fun CropAuditScreen(
                 )
             }
 
-            TextButton(
-                onClick = { resetCurrent() },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "Reset",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = colors.textSecondary
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(
+                    onClick = { autoDetectCurrent() },
+                    enabled = currentRawBitmap != null,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Auto-Detect",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.accentSurgical
+                    )
+                }
+
+                TextButton(
+                    onClick = { resetCurrent() },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Reset",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.textSecondary
+                    )
+                }
             }
         }
 

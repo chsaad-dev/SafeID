@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
+import com.saaddev.safeid.data.CustomPresetRepository
+import com.saaddev.safeid.data.CustomWatermarkPreset
 import com.saaddev.safeid.data.model.ExportConfig
 import com.saaddev.safeid.data.model.SafeIdSessionState
 import com.saaddev.safeid.engine.PrivacyAuditReport
@@ -23,7 +25,32 @@ class SafeIdViewModel : ViewModel() {
     private val _sessionState = MutableStateFlow(SafeIdSessionState())
     val sessionState: StateFlow<SafeIdSessionState> = _sessionState.asStateFlow()
 
-    fun setSingleDocument(uri: Uri, quickPreset: String? = null) {
+    private val _customPresets = MutableStateFlow<List<CustomWatermarkPreset>>(emptyList())
+    val customPresets: StateFlow<List<CustomWatermarkPreset>> = _customPresets.asStateFlow()
+
+    fun loadCustomPresets(context: Context) {
+        _customPresets.value = CustomPresetRepository.loadPresets(context)
+    }
+
+    fun addCustomPreset(context: Context, label: String, templateText: String) {
+        val cleanLabel = label.trim()
+        val cleanText = templateText.trim()
+        if (cleanLabel.isBlank() || cleanText.isBlank()) return
+        val updated = _customPresets.value + CustomWatermarkPreset(
+            label = cleanLabel,
+            templateText = cleanText
+        )
+        _customPresets.value = updated
+        CustomPresetRepository.savePresets(context, updated)
+    }
+
+    fun deleteCustomPreset(context: Context, id: String) {
+        val updated = _customPresets.value.filterNot { it.id == id }
+        _customPresets.value = updated
+        CustomPresetRepository.savePresets(context, updated)
+    }
+
+    fun setSingleDocument(uri: Uri, quickPreset: String? = null, quickPresetText: String? = null) {
         _sessionState.update { current ->
             current.copy(
                 primaryImageUri = uri,
@@ -32,6 +59,7 @@ class SafeIdViewModel : ViewModel() {
                 bundleImageUris = emptyList(),
                 passportPhotoUri = null,
                 quickPreset = quickPreset,
+                quickPresetText = quickPresetText,
                 primaryPrivacyReport = null,
                 secondaryPrivacyReport = null,
                 processedBitmap = null,
