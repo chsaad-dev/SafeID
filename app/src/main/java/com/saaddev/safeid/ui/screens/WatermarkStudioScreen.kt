@@ -97,11 +97,8 @@ private enum class StudioInteractionMode(val label: String) {
 }
 
 private enum class WatermarkPreset(val chipLabel: String, val textTemplate: String) {
-    SIM("SIM Verification", "FOR SIM VERIFICATION ONLY"),
     KYC("Bank / KYC", "FOR BANK & KYC VERIFICATION ONLY"),
     JOB("Job Application", "FOR JOB APPLICATION ONLY"),
-    VISA("Visa / Travel", "FOR VISA & TRAVEL APPLICATION ONLY"),
-    RENTAL("Rental", "FOR RENTAL AGREEMENT ONLY"),
     CUSTOM("Custom", "CONFIDENTIAL & PRIVACY PROTECTED")
 }
 
@@ -129,9 +126,8 @@ fun WatermarkStudioScreen(
     val initialPreset = remember(sessionState.quickPreset, sessionState.quickPresetText) {
         when (sessionState.quickPreset) {
             "Bank KYC" -> WatermarkPreset.KYC
-            "SIM Card" -> WatermarkPreset.SIM
             "Job Portal" -> WatermarkPreset.JOB
-            "Visa / Travel" -> WatermarkPreset.VISA
+            "SIM Card", "Visa / Travel" -> WatermarkPreset.CUSTOM
             else -> if (sessionState.quickPresetText != null) WatermarkPreset.CUSTOM else WatermarkPreset.KYC
         }
     }
@@ -147,8 +143,14 @@ fun WatermarkStudioScreen(
     var selectedCustomPresetLabel by remember(sessionState.quickPreset, sessionState.quickPresetText) {
         mutableStateOf(if (sessionState.quickPresetText != null) sessionState.quickPreset else null)
     }
-    var customWatermarkText by remember(initialPreset, sessionState.quickPresetText) {
-        mutableStateOf(sessionState.quickPresetText ?: initialPreset.textTemplate)
+    var customWatermarkText by remember(initialPreset, sessionState.quickPreset, sessionState.quickPresetText) {
+        mutableStateOf(
+            sessionState.quickPresetText ?: when (sessionState.quickPreset) {
+                "SIM Card" -> "FOR SIM VERIFICATION ONLY"
+                "Visa / Travel" -> "FOR VISA & TRAVEL APPLICATION ONLY"
+                else -> initialPreset.textTemplate
+            }
+        )
     }
     var includeDate by remember { mutableStateOf(true) }
     var isOcrScanning by remember { mutableStateOf(false) }
@@ -537,56 +539,23 @@ fun WatermarkStudioScreen(
                     }
 
                     if (interactionMode == StudioInteractionMode.BLUR_BRUSH) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        TextButton(
+                            onClick = {
+                                if (currentBlurStrokes.isNotEmpty()) {
+                                    updateCurrentBlurStrokes(currentBlurStrokes.dropLast(1))
+                                }
+                            },
+                            enabled = currentBlurStrokes.isNotEmpty(),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = colors.bgSubtle,
-                                border = BorderStroke(1.dp, colors.borderHairline),
-                                modifier = Modifier.clickable(enabled = !isOcrScanning && currentBaseBitmap != null) {
-                                    runAutoMaskOcr()
-                                }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                ) {
-                                    if (isOcrScanning) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(11.dp),
-                                            strokeWidth = 1.5.dp,
-                                            color = colors.accentSurgical
-                                        )
-                                    }
-                                    Text(
-                                        text = if (isOcrScanning) "Scanning..." else "Auto-Mask IDs",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = colors.accentSurgical,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-
-                            TextButton(
-                                onClick = {
-                                    if (currentBlurStrokes.isNotEmpty()) {
-                                        updateCurrentBlurStrokes(currentBlurStrokes.dropLast(1))
-                                    }
-                                },
-                                enabled = currentBlurStrokes.isNotEmpty(),
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "Undo",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (currentBlurStrokes.isNotEmpty()) colors.textPrimary else colors.textTertiary
-                                )
-                            }
+                            Text(
+                                text = "Undo",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false,
+                                color = if (currentBlurStrokes.isNotEmpty()) colors.textPrimary else colors.textTertiary
+                            )
                         }
                     }
                 }
@@ -615,6 +584,42 @@ fun WatermarkStudioScreen(
                             },
                             modifier = Modifier.fillMaxSize()
                         )
+
+                        if (interactionMode == StudioInteractionMode.BLUR_BRUSH) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = colors.bgElevated,
+                                border = BorderStroke(1.dp, colors.borderHairline),
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(8.dp)
+                                    .clickable(enabled = !isOcrScanning) {
+                                        runAutoMaskOcr()
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    if (isOcrScanning) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(11.dp),
+                                            strokeWidth = 1.5.dp,
+                                            color = colors.accentSurgical
+                                        )
+                                    }
+                                    Text(
+                                        text = if (isOcrScanning) "Scanning..." else "Auto-Mask IDs",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colors.accentSurgical,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+                        }
                     } else {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
